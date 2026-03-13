@@ -1,0 +1,21 @@
+[GENERAL]
+PORT = 3000
+SIMILARITY_MEASURE = "cosine"
+
+[OPENAI]
+API_KEY = ""
+
+[OLLAMA]
+API_URL = "http://ollama:11434"
+
+[ANTHROPIC]
+API_KEY = ""
+
+[GROQ]
+API_KEY = ""
+
+[GEMINI]
+API_KEY = ""
+
+[SEARXNG]
+URL = "http://searxng:8080"

@@ -1,0 +1,963 @@
+###############################################################
+#   MANTHANA — MEDICAL AI ENGINE — MASTER DOCKER COMPOSE     #
+#   Production Grade | Single Spec | All Services            #
+###############################################################
+
+version: "3.9"
+
+###############################################################
+#   NETWORKS
+###############################################################
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+  monitoring:
+    driver: bridge
+
+###############################################################
+#   VOLUMES
+###############################################################
+volumes:
+  traefik-certs:
+  elasticsearch-data:
+  qdrant-data:
+  redis-data:
+  meilisearch-data:
+  ollama-models:
+  perplexica-data:
+  n8n-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  nutch-data:
+  firecrawl-data:
+
+###############################################################
+#   SERVICES
+###############################################################
+services:
+
+  ##############################################################
+  # 🚪 LAYER 0: GATEWAY — Traefik
+  ##############################################################
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certs:/letsencrypt
+    networks:
+      - frontend
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH}"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ##############################################################
+  # 🤖 LAYER 1: AI MICROSERVICES
+  ##############################################################
+
+  ai-router:
+    build:
+      context: ./services/ai-router
+    container_name: manthana-ai-router
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - radiology
+      - ecg
+      - eye
+      - cancer
+      - pathology
+      - brain
+      - segmentation
+      - nlp
+      - drug
+      - ayurveda
+      - imaging-utils
+      - indexer
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ai-router.rule=Host(`api.${DOMAIN}`)"
+      - "traefik.http.routers.ai-router.entrypoints=websecure"
+      - "traefik.http.routers.ai-router.tls.certresolver=myresolver"
+      - "traefik.http.services.ai-router.loadbalancer.server.port=8000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  radiology:
+    build:
+      context: ./services/radiology
+    container_name: manthana-radiology
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./ai-tools:/app/ai-tools:ro
+    ports:
+      - "127.0.0.1:8101:8101"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8101/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ecg:
+    build:
+      context: ./services/ecg
+    container_name: manthana-ecg
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8102:8102"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8102/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  eye:
+    build:
+      context: ./services/eye
+    container_name: manthana-eye
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8103:8103"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8103/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  cancer:
+    build:
+      context: ./services/cancer
+    container_name: manthana-cancer
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8104:8104"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8104/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  pathology:
+    build:
+      context: ./services/pathology
+    container_name: manthana-pathology
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8105:8105"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8105/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  brain:
+    build:
+      context: ./services/brain
+    container_name: manthana-brain
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8106:8106"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8106/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  segmentation:
+    build:
+      context: ./services/segmentation
+    container_name: manthana-segmentation
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8107:8107"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8107/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nlp:
+    build:
+      context: ./services/nlp
+    container_name: manthana-nlp
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8108:8108"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8108/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  drug:
+    build:
+      context: ./services/drug
+    container_name: manthana-drug
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8109:8109"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8109/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ayurveda:
+    build:
+      context: ./services/ayurveda
+    container_name: manthana-ayurveda
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8110:8110"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8110/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  imaging-utils:
+    build:
+      context: ./services/imaging-utils
+    container_name: manthana-imaging-utils
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8111:8111"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8111/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  indexer:
+    build:
+      context: ./services/indexer
+    container_name: manthana-indexer
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8112:8112"
+    networks:
+      - backend
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8112/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ##############################################################
+  # 🕷️ LAYER 2: CRAWLERS
+  ##############################################################
+
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    container_name: crawl4ai
+    restart: unless-stopped
+    environment:
+      - MAX_CONCURRENT_TASKS=10
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "127.0.0.1:11235:11235"
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11235/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  firecrawl-api:
+    build:
+      context: ./crawlers/firecrawl
+      dockerfile: apps/api/Dockerfile
+    container_name: firecrawl-api
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - REDIS_RATE_LIMIT_URL=redis://redis:6379
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000
+      - USE_DB_AUTHENTICATION=false
+      - PORT=3002
+      - NUM_WORKERS_PER_QUEUE=8
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummy}
+      - SCRAPING_BEE_API_KEY=${SCRAPING_BEE_API_KEY:-}
+      - HOST=0.0.0.0
+      - SELF_HOSTED_WEBHOOK_URL=http://firecrawl-api:3002
+    ports:
+      - "127.0.0.1:3002:3002"
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      firecrawl-playwright:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  firecrawl-worker:
+    build:
+      context: ./crawlers/firecrawl
+      dockerfile: apps/api/Dockerfile
+    container_name: firecrawl-worker
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000
+      - USE_DB_AUTHENTICATION=false
+      - NUM_WORKERS_PER_QUEUE=8
+    entrypoint: ["pnpm", "run", "workers"]
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  firecrawl-playwright:
+    image: browserless/chrome:latest
+    container_name: firecrawl-playwright
+    restart: unless-stopped
+    environment:
+      - DEFAULT_LAUNCH_ARGS=["--no-sandbox","--disable-dev-shm-usage"]
+      - CONCURRENT=10
+      - TIMEOUT=30000
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  manthana-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: manthana-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      - SEARXNG_URL=http://searxng:8080
+      - FIRECRAWL_URL=http://firecrawl-api:3002
+      - CRAWL4AI_URL=http://crawl4ai:11235
+      - OLLAMA_URL=http://ollama:11434
+      - QDRANT_URL=http://qdrant:6333
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - MEILISEARCH_URL=http://meilisearch:7700
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - OLLAMA_MODEL=llama3
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  nutch:
+    build:
+      context: ./crawlers/nutch
+      dockerfile: Dockerfile
+    container_name: nutch
+    restart: unless-stopped
+    volumes:
+      - nutch-data:/nutch/crawl
+      - ./seeds:/nutch/urls
+      - ./configs/nutch-site.xml:/nutch/conf/nutch-site.xml
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    networks:
+      - backend
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  ##############################################################
+  # 🗄️ LAYER 3: STORAGE & INDEX
+  ##############################################################
+
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.monitoring.templates.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - cluster.name=medical-search
+      - bootstrap.memory_lock=true
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - backend
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=INFO
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ##############################################################
+  # 🔍 LAYER 4: SEARCH ENGINES
+  ##############################################################
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_BASE_URL=https://search.${DOMAIN}
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./configs/searxng:/etc/searxng:rw
+    networks:
+      - backend
+      - frontend
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`search.${DOMAIN}`)"
+      - "traefik.http.routers.searxng.entrypoints=websecure"
+      - "traefik.http.routers.searxng.tls.certresolver=myresolver"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: meilisearch
+    restart: unless-stopped
+    environment:
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - MEILI_ENV=production
+      - MEILI_LOG_LEVEL=INFO
+      - MEILI_MAX_INDEXING_MEMORY=500Mb
+    ports:
+      - "127.0.0.1:7700:7700"
+    volumes:
+      - meilisearch-data:/meili_data
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ##############################################################
+  # 🧠 LAYER 5: AI BRAIN
+  ##############################################################
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: always
+    ports:
+      - "11434:4000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HF_TOKEN=${HF_TOKEN}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    networks:
+      - backend
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: always
+    entrypoint: >
+      sh -c "ollama serve &
+      sleep 8 &&
+      ollama pull nomic-embed-text &&
+      tail -f /dev/null"
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - backend
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_LOADED_MODELS=2
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ##############################################################
+  # 🎨 LAYER 6: FRONTEND / INTERNAL SEARCH
+  # Perplexica — INTERNAL ONLY (no public port binding)
+  # Accessed only via ai-router service on internal Docker network
+  ##############################################################
+  perplexica:
+    build:
+      context: ./backend/search-engine/perplexica
+      dockerfile: Dockerfile
+    container_name: perplexica
+    restart: unless-stopped
+    environment:
+      - SEARXNG_API_URL=http://searxng:8080
+      - OLLAMA_API_URL=http://ollama:11434
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - INTERNAL_ONLY=true
+      - NEXT_PUBLIC_API_URL=http://ai-router:8000
+    # NO port binding — internal network only (bug #8 fix)
+    volumes:
+      - perplexica-data:/app/data
+      - ./configs/perplexica.toml:/app/config.toml
+    networks:
+      - backend
+    depends_on:
+      searxng:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ##############################################################
+  # 🎛️ LAYER 7: ORCHESTRATION
+  ##############################################################
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=n8n.${DOMAIN}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://n8n.${DOMAIN}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - DB_TYPE=sqlite
+      - N8N_LOG_LEVEL=info
+      - EXECUTIONS_PROCESS=main
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.${DOMAIN}`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=myresolver"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ##############################################################
+  # 📊 LAYER 8: OBSERVABILITY
+  ##############################################################
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_DOMAIN=grafana.${DOMAIN}
+      - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
+      - GF_LOG_LEVEL=info
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    ports:
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - monitoring
+      - frontend
+    depends_on:
+      - prometheus
+      - loki
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./configs/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+

@@ -1,0 +1,277 @@
+use_default_settings: true
+
+server:
+  secret_key: "${SEARXNG_SECRET}"
+  limiter: false
+  image_proxy: true
+  port: 8080
+  bind_address: "0.0.0.0"
+
+ui:
+  static_use_hash: true
+  infinite_scroll: true
+  default_theme: simple
+  theme_args:
+    simple_style: dark
+
+search:
+  safe_search: 0
+  autocomplete: "google"
+  default_lang: "en"
+  default_category: "medical"
+  formats:
+    - html
+    - json
+  categories_as_tabs:
+    general:
+      weight: 1
+    medical:
+      weight: 3
+    science:
+      weight: 2
+    ayurveda:
+      weight: 3
+    homeopathy:
+      weight: 2
+    siddha:
+      weight: 2
+    unani:
+      weight: 2
+    naturopathy:
+      weight: 1
+    regulatory:
+      weight: 2
+
+engines:
+  - name: google
+    engine: google
+    disabled: false
+    weight: 1
+
+  - name: bing
+    engine: bing
+    disabled: false
+    weight: 1
+
+  - name: duckduckgo
+    engine: duckduckgo
+    disabled: false
+    weight: 1
+
+  - name: pubmed
+    engine: pubmed
+    disabled: false
+    weight: 2
+    categories: science, medical
+
+  - name: semantic scholar
+    engine: semantic_scholar
+    disabled: false
+    weight: 2
+    categories: science, medical
+
+  - name: google scholar
+    engine: google_scholar
+    disabled: false
+    weight: 2
+    categories: science, medical
+
+  - name: wikipedia
+    engine: wikipedia
+    disabled: false
+    weight: 1
+
+  - name: wikidata
+    engine: wikidata
+    disabled: false
+    weight: 1
+
+  # ── CLINICAL & DRUG DATABASES ─────────────────
+  - name: openreact
+    engine: xpath
+    url: https://www.rxlist.com/
+    disabled: false
+    categories: medical
+
+  - name: drugs.com
+    engine: xpath
+    url: https://www.drugs.com/
+    disabled: false
+    categories: medical
+
+  - name: medlineplus
+    engine: xpath
+    url: https://medlineplus.gov/
+    disabled: false
+    weight: 2
+    categories: medical
+
+  # ── RESEARCH & JOURNALS ───────────────────────
+  - name: unpaywall
+    engine: xpath
+    url: https://unpaywall.org/
+    disabled: false
+    categories: science, medical
+
+  - name: core
+    engine: xpath
+    url: https://core.ac.uk/
+    disabled: false
+    weight: 2
+    categories: science, medical
+
+  - name: europe pmc
+    engine: xpath
+    url: https://europepmc.org/
+    disabled: false
+    weight: 2
+    categories: science, medical
+
+  - name: plos medicine
+    engine: xpath
+    url: https://journals.plos.org/plosmedicine/
+    disabled: false
+    categories: science, medical
+
+  - name: bmj open
+    engine: xpath
+    url: https://bmjopen.bmj.com/
+    disabled: false
+    categories: science, medical
+
+  - name: cochrane
+    engine: xpath
+    url: https://www.cochranelibrary.com/
+    disabled: false
+    weight: 2
+    categories: medical, science
+
+  # ── AYURVEDA & TRADITIONAL MEDICINE ──────────
+  - name: ayush gov
+    engine: xpath
+    url: https://ayush.gov.in/
+    disabled: false
+    weight: 2
+    categories: medical, ayurveda
+
+  - name: ccras
+    engine: xpath
+    url: https://www.ccras.nic.in/
+    disabled: false
+    weight: 2
+    categories: medical, ayurveda
+
+  - name: nmpb
+    engine: xpath
+    url: https://nmpb.nic.in/
+    disabled: false
+    categories: medical, ayurveda
+
+  - name: niimh
+    engine: xpath
+    url: https://niimh.nic.in/
+    disabled: false
+    weight: 2
+    categories: medical, ayurveda
+
+  # ── HOMEOPATHY ────────────────────────────────
+  - name: ccrh
+    engine: xpath
+    url: https://www.ccrh.gov.in/
+    disabled: false
+    weight: 2
+    categories: medical, homeopathy
+
+  - name: similima
+    engine: xpath
+    url: https://www.similima.com/
+    disabled: false
+    categories: medical, homeopathy
+
+  # ── SIDDHA ────────────────────────────────────
+  - name: ccsiddha
+    engine: xpath
+    url: https://www.ccsiddha.nic.in/
+    disabled: false
+    weight: 2
+    categories: medical, siddha
+
+  # ── UNANI ─────────────────────────────────────
+  - name: ccrum
+    engine: xpath
+    url: https://www.ccrum.net/
+    disabled: false
+    weight: 2
+    categories: medical, unani
+
+  # ── NATUROPATHY & YOGA ────────────────────────
+  - name: ccryn
+    engine: xpath
+    url: https://www.ccryn.gov.in/
+    disabled: false
+    categories: medical, naturopathy
+
+  # ── GLOBAL HEALTH ─────────────────────────────
+  - name: who
+    engine: xpath
+    url: https://www.who.int/
+    disabled: false
+    weight: 2
+    categories: medical
+
+  - name: nih
+    engine: xpath
+    url: https://www.nih.gov/
+    disabled: false
+    weight: 2
+    categories: medical, science
+
+  - name: cdc
+    engine: xpath
+    url: https://www.cdc.gov/
+    disabled: false
+    weight: 1
+    categories: medical
+
+  - name: cdsco
+    engine: xpath
+    url: https://cdsco.gov.in/
+    disabled: false
+    weight: 2
+    categories: medical, regulatory
+
+  # ── CLINICAL TRIALS ───────────────────────────
+  - name: clinical trials
+    engine: xpath
+    url: https://clinicaltrials.gov/
+    disabled: false
+    weight: 2
+    categories: medical, science
+
+  - name: ctri india
+    engine: xpath
+    url: https://ctri.nic.in/
+    disabled: false
+    weight: 2
+    categories: medical, science
+
+  # ── MEDICAL EDUCATION ─────────────────────────
+  - name: medscape
+    engine: xpath
+    url: https://www.medscape.com/
+    disabled: false
+    categories: medical
+
+  - name: statpearls
+    engine: xpath
+    url: https://www.ncbi.nlm.nih.gov/books/NBK430685/
+    disabled: false
+    weight: 2
+    categories: medical
+
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 20.0
+  useragent_suffix: ""
+  pool_connections: 100
+  pool_maxsize: 20

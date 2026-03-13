@@ -1,0 +1,185 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: "manthana-monitor"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+
+  ###############################################################
+  # 🤖 AI MICROSERVICES — all 12 services
+  ###############################################################
+
+  - job_name: "manthana-ai-router"
+    static_configs:
+      - targets: ["ai-router:8000"]
+        labels:
+          service: "ai-router"
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: "manthana-radiology"
+    static_configs:
+      - targets: ["radiology:8101"]
+        labels:
+          service: "radiology"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-ecg"
+    static_configs:
+      - targets: ["ecg:8102"]
+        labels:
+          service: "ecg"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-eye"
+    static_configs:
+      - targets: ["eye:8103"]
+        labels:
+          service: "eye"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-cancer"
+    static_configs:
+      - targets: ["cancer:8104"]
+        labels:
+          service: "cancer"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-pathology"
+    static_configs:
+      - targets: ["pathology:8105"]
+        labels:
+          service: "pathology"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-brain"
+    static_configs:
+      - targets: ["brain:8106"]
+        labels:
+          service: "brain"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-segmentation"
+    static_configs:
+      - targets: ["segmentation:8107"]
+        labels:
+          service: "segmentation"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-nlp"
+    static_configs:
+      - targets: ["nlp:8108"]
+        labels:
+          service: "nlp"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-drug"
+    static_configs:
+      - targets: ["drug:8109"]
+        labels:
+          service: "drug"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-ayurveda"
+    static_configs:
+      - targets: ["ayurveda:8110"]
+        labels:
+          service: "ayurveda"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-imaging-utils"
+    static_configs:
+      - targets: ["imaging-utils:8111"]
+        labels:
+          service: "imaging-utils"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "manthana-indexer"
+    static_configs:
+      - targets: ["indexer:8112"]
+        labels:
+          service: "indexer"
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  ###############################################################
+  # 🗄️ INFRASTRUCTURE
+  ###############################################################
+
+  - job_name: "searxng"
+    static_configs:
+      - targets: ["searxng:8080"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "elasticsearch"
+    static_configs:
+      - targets: ["elasticsearch:9200"]
+    metrics_path: /_prometheus/metrics
+    scrape_interval: 30s
+
+  - job_name: "qdrant"
+    static_configs:
+      - targets: ["qdrant:6333"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "meilisearch"
+    static_configs:
+      - targets: ["meilisearch:7700"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis:6379"]
+    scrape_interval: 30s
+
+  - job_name: "ollama"
+    static_configs:
+      - targets: ["ollama:11434"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "crawl4ai"
+    static_configs:
+      - targets: ["crawl4ai:11235"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "firecrawl"
+    static_configs:
+      - targets: ["firecrawl-api:3002"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "n8n"
+    static_configs:
+      - targets: ["n8n:5678"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: "traefik"
+    static_configs:
+      - targets: ["traefik:8080"]
+    metrics_path: /metrics
+    scrape_interval: 15s

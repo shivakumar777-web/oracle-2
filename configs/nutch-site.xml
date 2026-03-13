@@ -1,0 +1,99 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+
+  <!-- Crawler identity -->
+  <property>
+    <name>http.agent.name</name>
+    <value>ManthanaBot</value>
+  </property>
+  <property>
+    <name>http.agent.description</name>
+    <value>Manthana Medical Knowledge Crawler</value>
+  </property>
+  <property>
+    <name>http.agent.url</name>
+    <value>https://manthana.ai</value>
+  </property>
+  <property>
+    <name>http.agent.email</name>
+    <value>bot@manthana.ai</value>
+  </property>
+
+  <!-- Crawl limits -->
+  <property>
+    <name>db.max.outlinks.per.page</name>
+    <value>100</value>
+  </property>
+  <property>
+    <name>db.ignore.external.links</name>
+    <value>false</value>
+  </property>
+  <property>
+    <name>fetcher.threads.fetch</name>
+    <value>10</value>
+  </property>
+  <property>
+    <name>fetcher.threads.per.queue</name>
+    <value>1</value>
+  </property>
+  <property>
+    <name>generate.max.count</name>
+    <value>10000</value>
+  </property>
+  <property>
+    <name>generate.count.mode</name>
+    <value>host</value>
+  </property>
+
+  <!-- Elasticsearch indexer -->
+  <property>
+    <name>plugin.includes</name>
+    <value>protocol-http|protocol-httpclient|urlfilter-regex|parse-(html|tika)|index-(basic|anchor)|indexer-elastic|scoring-opic|urlnormalizer-(pass|regex|basic)</value>
+  </property>
+  <property>
+    <name>elastic.host</name>
+    <value>elasticsearch</value>
+  </property>
+  <property>
+    <name>elastic.port</name>
+    <value>9200</value>
+  </property>
+  <property>
+    <name>elastic.index</name>
+    <value>manthana-medical</value>
+  </property>
+  <property>
+    <name>elastic.max.bulk.docs</name>
+    <value>250</value>
+  </property>
+  <property>
+    <name>elastic.max.bulk.size</name>
+    <value>2500500</value>
+  </property>
+
+  <!-- HTTP settings -->
+  <property>
+    <name>http.timeout</name>
+    <value>10000</value>
+  </property>
+  <property>
+    <name>http.max.delays</name>
+    <value>25</value>
+  </property>
+  <property>
+    <name>http.content.limit</name>
+    <value>65536</value>
+  </property>
+  <property>
+    <name>http.robots.agents</name>
+    <value>ManthanaBot,*</value>
+  </property>
+
+  <!-- Medical domain URL filter -->
+  <property>
+    <name>urlfilter.regex.file</name>
+    <value>regex-urlfilter.txt</value>
+  </property>
+
+</configuration>
