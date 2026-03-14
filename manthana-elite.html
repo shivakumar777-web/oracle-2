@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MANTHANA — Cosmic Medical Intelligence</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g0:#000000;--g1:#020610;--g2:#04080F;
+  --gold-s:#6E4010;--gold-d:#A87830;--gold:#C8922A;--gold-m:#D4A847;
+  --gold-h:#ECC967;--gold-p:#F7E4A0;--gold-x:#FFFBE8;
+  --teal-d:#005A54;--teal:#009B8E;--teal-m:#00C4B0;--teal-h:#3DDBC8;--teal-p:#A0EEE6;
+  --white:#F5F0E8;--wd:rgba(245,240,232,.48);--wf:rgba(245,240,232,.16)
+}
+html,body{min-height:100vh;background:var(--g0);color:var(--white);
+  font-family:'Optima','Candara','Century Gothic',Verdana,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;cursor:default}
+
+@keyframes float  {0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+@keyframes rcw    {to{transform:rotate( 360deg)}}
+@keyframes rccw   {to{transform:rotate(-360deg)}}
+@keyframes pulse  {0%,100%{opacity:.42;transform:scale(.9)} 50%{opacity:.92;transform:scale(1.1)}}
+@keyframes glow   {0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes tblink {0%,100%{opacity:.6}50%{opacity:1;filter:drop-shadow(0 0 7px #7FFFD4)}}
+@keyframes rise   {from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fi     {from{opacity:0}to{opacity:1}}
+@keyframes rule   {from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+@keyframes bgdot  {0%,100%{background-position:0 0}50%{background-position:6px 6px}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes scandash{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-80}}
+
+/* ── HERO */
+#hero{
+  position:relative;width:100%;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:80px 24px 130px;overflow:hidden;
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 34%,rgba(0,196,176,.05) 0%,transparent 68%),
+    radial-gradient(ellipse 46% 54% at 50% 86%,rgba(200,146,42,.046) 0%,transparent 66%),
+    radial-gradient(ellipse 150% 110% at 50% 50%,#020916 0%,#000000 100%)
+}
+#hero::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(circle,rgba(200,146,42,.08) 1px,transparent 1px);
+  background-size:34px 34px;
+  mask-image:radial-gradient(ellipse 76% 76% at 50% 50%,black,transparent 82%);
+  animation:fi 3s 1.4s both,bgdot 30s 4s ease-in-out infinite
+}
+#hero::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 100% 100% at 50% 50%,transparent 36%,rgba(0,0,0,.8) 100%)
+}
+#cosmos{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+
+/* ── LOGO WRAP */
+.lw{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center}
+.ic{width:clamp(220px,34vw,380px);aspect-ratio:1;
+    animation:float 7s ease-in-out infinite,rise 2s cubic-bezier(.22,.84,.44,1) both}
+.ic svg{display:block;width:100%;height:100%}
+.ic:hover{animation-play-state:paused}
+.ic:hover svg{filter:brightness(1.2) saturate(1.15);transition:filter .4s}
+
+.dia{display:flex;align-items:center;gap:12px;margin:24px 0 11px;animation:rise 1.6s 1s both}
+.dia::before,.dia::after{content:'';display:block;height:.5px;width:62px}
+.dia::before{background:linear-gradient(to right,transparent,rgba(212,168,71,.44))}
+.dia::after {background:linear-gradient(to left, transparent,rgba(212,168,71,.44))}
+.d{width:5px;height:5px;transform:rotate(45deg);background:var(--gold-m)}
+.d:first-child,.d:last-child{opacity:.3;width:3px;height:3px}
+
+.wm{
+  font-size:clamp(17px,3.7vw,48px);font-weight:400;
+  letter-spacing:.66em;padding-left:.66em;text-transform:uppercase;
+  background:linear-gradient(175deg,var(--gold-x) 0%,var(--gold-p) 28%,var(--gold-m) 55%,var(--gold-d) 80%,var(--gold-s) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 32px rgba(212,168,71,.22));
+  animation:rise 1.6s 1.05s both
+}
+.rule{
+  width:min(420px,86vw);height:.5px;
+  background:linear-gradient(to right,transparent,rgba(212,168,71,.32),transparent);
+  margin:17px 0;transform-origin:center;
+  animation:rule 1.3s 1.65s cubic-bezier(.8,.1,.2,.9) both
+}
+.tag{
+  font-family:'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif;
+  font-style:italic;font-size:clamp(10px,1.55vw,15px);
+  letter-spacing:.24em;color:var(--wd);
+  animation:fi 2.2s 2.2s both
+}
+.sys{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;
+     margin-top:36px;animation:fi 2.4s 2.8s both}
+.sp{font-size:7.5px;letter-spacing:.38em;text-transform:uppercase;
+    color:rgba(245,240,232,.22);padding:5px 15px;
+    border:.5px solid rgba(0,196,176,.2);border-radius:1px;
+    transition:all .45s ease}
+.sp:hover{color:var(--teal-p);border-color:rgba(0,196,176,.58);
+          background:rgba(0,196,176,.04);letter-spacing:.43em}
+
+/* ── MANIFESTO */
+.manifesto-wrap{width:100%;background:#000;
+  border-top:.5px solid rgba(212,168,71,.06);
+  border-bottom:.5px solid rgba(212,168,71,.06)}
+.manifesto{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:1px;max-width:1100px;margin:0 auto;padding:0 40px
+}
+.mstat{display:flex;flex-direction:column;align-items:center;gap:9px;
+       padding:56px 20px;position:relative}
+.mstat::after{content:'';position:absolute;right:0;top:20%;height:60%;width:.5px;
+              background:rgba(212,168,71,.07)}
+.mstat:last-child::after{display:none}
+.mnum{
+  font-size:clamp(32px,4.8vw,56px);font-weight:300;letter-spacing:.05em;
+  background:linear-gradient(175deg,var(--gold-p) 0%,var(--gold-m) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text
+}
+.mlabel{font-size:8px;letter-spacing:.55em;text-transform:uppercase;
+        color:rgba(245,240,232,.2)}
+
+/* ── BRAND STORY */
+.story{
+  width:100%;max-width:680px;margin:0 auto;
+  padding:110px 40px 120px;
+  display:flex;flex-direction:column;align-items:center;gap:28px;
+  text-align:center
+}
+.story-rule{width:32px;height:.5px;background:rgba(212,168,71,.3)}
+.story-head{
+  font-size:clamp(9px,1.2vw,11px);letter-spacing:.7em;text-transform:uppercase;
+  color:rgba(212,168,71,.32)
+}
+.story-body{
+  font-family:'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif;
+  font-size:clamp(13px,1.9vw,18px);line-height:1.88;
+  color:rgba(245,240,232,.38);font-style:italic;letter-spacing:.03em
+}
+.story-body em{color:rgba(245,240,232,.65);font-style:normal}
+
+/* ── DARK EXPORTS */
+.exp{width:100%;background:#020508;
+  padding:108px 40px 128px;
+  border-top:.5px solid rgba(212,168,71,.07)}
+.sl{text-align:center;font-size:8px;letter-spacing:.7em;text-transform:uppercase;
+    color:rgba(212,168,71,.28);margin-bottom:80px}
+.eg{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:44px;max-width:1020px;margin:0 auto}
+.ec{display:flex;flex-direction:column;align-items:center;gap:18px}
+.ef{background:#000;border:.5px solid rgba(212,168,71,.1);
+    border-radius:24px;padding:40px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 100px rgba(0,0,0,.96),inset 0 1px 0 rgba(255,255,255,.02);
+    transition:border-color .5s,box-shadow .5s}
+.ef:hover{border-color:rgba(212,168,71,.22);
+          box-shadow:0 0 100px rgba(0,0,0,.96),0 0 50px rgba(200,146,42,.06),inset 0 1px 0 rgba(255,255,255,.03)}
+.ef.round{border-radius:44px}
+.ef.wide{padding:28px 34px;width:100%}
+.el{font-size:8px;letter-spacing:.52em;text-transform:uppercase;color:rgba(245,240,232,.17)}
+
+/* ── HORIZONTAL LOCKUP text */
+.hlwm{
+  font-family:'Optima','Candara',Verdana,sans-serif;
+  font-size:18px;font-weight:400;letter-spacing:.54em;padding-left:.54em;
+  background:linear-gradient(175deg,var(--gold-x) 0%,var(--gold-m) 55%,var(--gold-d) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text
+}
+.hltag{
+  font-family:'Palatino Linotype',Georgia,serif;font-style:italic;
+  font-size:9px;letter-spacing:.2em;color:var(--wd)
+}
+
+/* ── LIGHT SECTION */
+.ls{
+  background:linear-gradient(180deg,#EDEAD8 0%,#DAD4BE 100%);
+  padding:108px 40px 128px;
+  display:flex;flex-direction:column;align-items:center;
+  border-top:.5px solid rgba(200,146,42,.14)
+}
+.lsl{font-size:8px;letter-spacing:.7em;text-transform:uppercase;
+     color:rgba(40,26,6,.22);margin-bottom:80px}
+.lg{display:flex;flex-wrap:wrap;gap:32px;justify-content:center}
+.lcard{background:#FFF;border-radius:20px;padding:50px 62px;
+    display:flex;flex-direction:column;align-items:center;gap:14px;
+    box-shadow:0 14px 90px rgba(0,0,0,.09),0 2px 18px rgba(0,0,0,.04)}
+.pcard{
+  background:linear-gradient(148deg,#FBF3D8,#EDD898,#FBF3D8);
+  border-radius:20px;padding:50px 62px;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  box-shadow:0 14px 90px rgba(0,0,0,.08)}
+.lwm{font-family:'Optima','Candara',Verdana,sans-serif;
+     font-size:12.5px;letter-spacing:.54em;padding-left:.54em}
+.ltg{font-family:Georgia,serif;font-style:italic;
+     font-size:8px;letter-spacing:.13em}
+
+/* ── PALETTE */
+.pal{background:#000;padding:88px 40px;
+     display:flex;flex-direction:column;align-items:center;gap:44px;
+     border-top:.5px solid rgba(212,168,71,.07)}
+.psl{font-size:8px;letter-spacing:.65em;text-transform:uppercase;
+     color:rgba(245,240,232,.16)}
+.sw{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.s{display:flex;flex-direction:column;align-items:center;gap:9px}
+.sd{width:38px;height:38px;border-radius:50%;transition:transform .35s,box-shadow .35s}
+.sd:hover{transform:scale(1.22);box-shadow:0 0 24px rgba(212,168,71,.22)}
+.sh{font-size:7px;letter-spacing:.22em;color:rgba(245,240,232,.18)}
+
+/* ── FOOTER */
+.ft{background:#000;padding:56px 40px;text-align:center;
+    border-top:.5px solid rgba(245,240,232,.04)}
+.ftx{font-size:7.5px;letter-spacing:.58em;text-transform:uppercase;color:rgba(245,240,232,.09)}
+.ft-diamond{display:inline-block;width:4px;height:4px;transform:rotate(45deg);
+            background:rgba(212,168,71,.22);margin:0 18px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ HERO ══════════════ -->
+<section id="hero">
+<canvas id="cosmos"></canvas>
+<div class="lw">
+
+<!-- ── MAIN ICON ─────────────────── -->
+<div class="ic">
+<svg id="main-icon" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg"
+     role="img" aria-label="MANTHANA — five spiral arms churning to the golden Amrita">
+<defs>
+  <!-- Five arm gradients: teal-aqua tip → rich gold → luminous gold core -->
+  <linearGradient id="ag1" x1="130" y1="35" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag2" x1="220.4" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag3" x1="185.8" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag4" x1="74.2" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag5" x1="39.6" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+
+  <!-- White-hot core → molten gold → void -->
+  <radialGradient id="crg" cx="50%" cy="50%" r="50%">
+    <stop offset="0%"   stop-color="#FFFFFF"/>
+    <stop offset="12%"  stop-color="#FFFBE0"/>
+    <stop offset="33%"  stop-color="#F8C94A"/>
+    <stop offset="62%"  stop-color="#C0880A" stop-opacity=".66"/>
+    <stop offset="100%" stop-color="#7A5000" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="coh" cx="50%" cy="50%" r="50%">
+    <stop offset="0%"  stop-color="#D4A847" stop-opacity=".24"/>
+    <stop offset="100%" stop-color="#D4A847" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="amb" cx="50%" cy="50%" r="50%">
+    <stop offset="0%"  stop-color="#00C4B0" stop-opacity=".032"/>
+    <stop offset="55%" stop-color="#C8922A" stop-opacity=".024"/>
+    <stop offset="100%" stop-color="transparent"/>
+  </radialGradient>
+
+  <!-- Arm glow -->
+  <filter id="fHalo" x="-75%" y="-75%" width="250%" height="250%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="5.5" result="b"/>
+    <feColorMatrix in="b" type="matrix"
+      values=".08 .35 .5 0 .008  .42 .88 .68 0 .06  .28 .76 .88 0 .036  0 0 0 .42 0" result="c"/>
+    <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Core bloom -->
+  <filter id="fCore" x="-300%" y="-300%" width="700%" height="700%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b1"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="5"  result="b2"/>
+    <feMerge><feMergeNode in="b1"/><feMergeNode in="b2"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Tip bloom -->
+  <filter id="fTip" x="-500%" y="-500%" width="1100%" height="1100%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b"/>
+    <feColorMatrix in="b" type="matrix"
+      values="0 .18 .55 0 0  .35 .92 .68 0 .07  .28 .88 .88 0 .055  0 0 0 .68 0" result="c"/>
+    <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Ring soft -->
+  <filter id="fRing"><feGaussianBlur in="SourceGraphic" stdDeviation=".7"/></filter>
+  <!-- Living ocean turbulence -->
+  <filter id="fOcean" color-interpolation-filters="sRGB">
+    <feTurbulence type="turbulence" baseFrequency=".012 .019" numOctaves="4" seed="9" result="n">
+      <animate attributeName="seed" values="9;62;9" dur="90s" repeatCount="indefinite"/>
+    </feTurbulence>
+    <feColorMatrix type="matrix" in="n"
+      values="0 0 0 0 0.006
+              0 0 0 0 0.010
+              0 0 0 0 0.040
+              0 0 0 6 -4.2"/>
+  </filter>
+</defs>
+
+<!-- Ocean texture base -->
+<rect width="260" height="260" filter="url(#fOcean)"/>
+<!-- Ambient light field -->
+<circle cx="130" cy="130" r="128" fill="url(#amb)"/>
+
+<!-- Outer tick ring — 60 ticks, CCW 95s (JS populated) -->
+<g id="oticks" style="transform-origin:130px 130px;animation:rccw 95s linear infinite"/>
+<!-- Outer structural ring -->
+<circle cx="130" cy="130" r="112.5" fill="none"
+        stroke="rgba(200,146,42,.12)" stroke-width=".55" filter="url(#fRing)"/>
+<!-- Outer orbit dash CW 52s -->
+<circle cx="130" cy="130" r="101" fill="none"
+        stroke="rgba(0,196,176,.16)" stroke-width=".72" stroke-dasharray="5 12"
+        style="transform-origin:130px 130px;animation:rcw 52s linear infinite"/>
+
+<!-- Inner compass ring — 24 ticks, CW 60s (JS populated) -->
+<g id="iticks" style="transform-origin:130px 130px;animation:rcw 60s linear infinite"/>
+
+<!-- Mid boundary ring -->
+<circle cx="130" cy="130" r="59" fill="none"
+        stroke="rgba(212,168,71,.07)" stroke-width=".5" stroke-dasharray="2 7.5"/>
+
+<!-- Ghost spokes -->
+<g opacity=".038" stroke="#FFF" stroke-width=".4">
+  <line x1="130" y1="35"     x2="130"   y2="130"/>
+  <line x1="220.4" y1="100.6" x2="130"  y2="130"/>
+  <line x1="185.8" y1="206.9" x2="130"  y2="130"/>
+  <line x1="74.2"  y1="206.9" x2="130"  y2="130"/>
+  <line x1="39.6"  y1="100.6" x2="130"  y2="130"/>
+</g>
+
+<!-- Secondary echo arms (wider spiral offset) -->
+<g opacity=".14">
+  <path d="M130,35 C184,78 170,127 130,130"    fill="none" stroke="url(#ag1)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M220.4,100.6 C184,170 140,165 130,130" fill="none" stroke="url(#ag2)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M185.8,206.9 C113,200 100,151 130,130" fill="none" stroke="url(#ag3)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M74.2,206.9 C59,133 100,107 130,130"   fill="none" stroke="url(#ag4)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M39.6,100.6 C108,64 143,94 130,130"    fill="none" stroke="url(#ag5)" stroke-width=".45" stroke-linecap="round"/>
+</g>
+
+<!-- ARM HALOS -->
+<g filter="url(#fHalo)" opacity=".25">
+  <path d="M130,35 C173.84,86.16 158,130 130,130"     fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130"   fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130"   fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+</g>
+
+<!-- MAIN SPIRAL ARMS — five medical traditions converging to Amrita -->
+<g filter="url(#fHalo)">
+  <path d="M130,35 C173.84,86.16 158,130 130,130"     fill="none" stroke="url(#ag1)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="url(#ag2)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="url(#ag3)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130"   fill="none" stroke="url(#ag4)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130"   fill="none" stroke="url(#ag5)" stroke-width="2.2" stroke-linecap="round"/>
+</g>
+
+<!-- TIP NODES — the five sources of medical wisdom -->
+<g filter="url(#fTip)" style="animation:tblink 4s ease-in-out infinite">
+  <circle cx="130"   cy="35"    r="3.6" fill="#7FFFD4"/>
+  <circle cx="220.4" cy="100.6" r="3.6" fill="#7FFFD4"/>
+  <circle cx="185.8" cy="206.9" r="3.6" fill="#7FFFD4"/>
+  <circle cx="74.2"  cy="206.9" r="3.6" fill="#7FFFD4"/>
+  <circle cx="39.6"  cy="100.6" r="3.6" fill="#7FFFD4"/>
+</g>
+
+<!-- Bezier midpoint nodes (JS populated) -->
+<g id="armNodes" opacity=".64"/>
+
+<!-- Sun ray lines emanating from core (JS populated) -->
+<g id="sunRays" opacity=".28"/>
+
+<!-- Outer pentagon — sacred enclosure -->
+<polygon points="130,100 158.53,120.73 147.63,154.27 112.37,154.27 101.47,120.73"
+         fill="none" stroke="rgba(212,168,71,.22)" stroke-width=".68"/>
+
+<!-- 8 Lotus petals — inner mandala -->
+<g opacity=".09" fill="none" stroke="rgba(212,168,71,1)" stroke-width=".6">
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(0,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(45,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(90,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(135,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(180,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(225,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(270,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(315,130,130)"/>
+</g>
+
+<!-- Star of David / hexagram — union of ancient and modern -->
+<g opacity=".14" fill="none" stroke="rgba(0,196,176,1)" stroke-width=".64">
+  <polygon points="130,106 151.65,143.5 108.35,143.5"/>
+  <polygon points="130,154 151.65,116.5 108.35,116.5"/>
+</g>
+
+<!-- Inner dashed spin ring CCW 25s -->
+<circle cx="130" cy="130" r="34.5" fill="none"
+        stroke="rgba(212,168,71,.18)" stroke-width=".66" stroke-dasharray="3 8.5"
+        style="transform-origin:130px 130px;animation:rccw 25s linear infinite"/>
+
+<!-- Pearl ring: 8 pearls CW 18s at r=50 -->
+<g style="transform-origin:130px 130px;animation:rcw 18s linear infinite" opacity=".50">
+  <circle cx="130"    cy="80"     r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="165.36" cy="94.64"  r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="180"    cy="130"    r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="165.36" cy="165.36" r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="130"    cy="180"    r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="94.64"  cy="165.36" r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="80"     cy="130"    r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="94.64"  cy="94.64"  r="1.6" fill="rgba(212,168,71,.95)"/>
+</g>
+
+<!-- Pearl ring: 5 pearls CCW 13s at r=17 -->
+<g style="transform-origin:130px 130px;animation:rccw 13s linear infinite" opacity=".68">
+  <circle cx="130"    cy="113"    r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="146.18" cy="124.75" r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="139.99" cy="143.76" r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="120.01" cy="143.76" r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="113.82" cy="124.75" r="1.3" fill="rgba(212,168,71,1)"/>
+</g>
+
+<!-- Core breathing halos -->
+<circle cx="130" cy="130" r="30" fill="url(#coh)"
+        style="transform-origin:130px 130px;animation:pulse 4.5s ease-in-out infinite"/>
+<circle cx="130" cy="130" r="18" fill="url(#crg)" opacity=".32"
+        style="transform-origin:130px 130px;animation:pulse 3.5s .5s ease-in-out infinite"/>
+<!-- Core bright with triple bloom -->
+<circle cx="130" cy="130" r="12" fill="url(#crg)" filter="url(#fCore)"
+        style="animation:glow 2.8s ease-in-out infinite"/>
+<!-- The Amrita — pure extracted nectar -->
+<circle cx="130" cy="130" r="4.4" fill="#FFF8D8"/>
+<circle cx="130" cy="130" r="2.1" fill="#FFFFFF"/>
+</svg>
+</div>
+
+<div class="dia"><div class="d"></div><div class="d"></div><div class="d"></div></div>
+<div class="wm">MANTHANA</div>
+<div class="rule"></div>
+<div class="tag">Churning the ocean of medical knowledge</div>
+<div class="sys">
+  <span class="sp">Ayurveda</span>
+  <span class="sp">Allopathy</span>
+  <span class="sp">Homeopathy</span>
+  <span class="sp">Siddha</span>
+  <span class="sp">Unani</span>
+</div>
+</div>
+</section>
+
+<!-- ══════ MANIFESTO ══════ -->
+<div class="manifesto-wrap">
+  <div class="manifesto">
+    <div class="mstat"><div class="mnum">5</div><div class="mlabel">Medical Systems</div></div>
+    <div class="mstat"><div class="mnum">∞</div><div class="mlabel">Indexed Knowledge</div></div>
+    <div class="mstat"><div class="mnum">1</div><div class="mlabel">Unified Intelligence</div></div>
+  </div>
+</div>
+
+<!-- ══════ BRAND STORY ══════ -->
+<div style="background:#000">
+<div class="story">
+  <div class="story-rule"></div>
+  <div class="story-head">The Philosophy</div>
+  <div class="story-body">
+    In the beginning, the cosmic ocean held all wisdom — infinite, undivided, unseen.
+    The <em>Samudra Manthan</em> was not destruction, it was <em>extraction</em>.
+    From the same churning came poison and nectar alike.
+    MANTHANA does what the gods did — it churns <em>five oceans</em> of medicine simultaneously,
+    so that what rises to the surface is only
+    <em>Amrita</em> — pure, verified, living knowledge.
+  </div>
+  <div class="story-rule"></div>
+</div>
+</div>
+
+<!-- ══════ DARK EXPORTS ══════ -->
+<section class="exp">
+  <p class="sl">Brand Export System</p>
+  <div class="eg">
+
+    <!-- ── Favicon 32×32 ── -->
+    <div class="ec">
+      <div class="ef">
+        <svg viewBox="0 0 32 32" width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="fvc" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stop-color="#FFF"/>
+              <stop offset="28%" stop-color="#F5C85A"/>
+              <stop offset="100%" stop-color="#7A5000" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="fvf" x="-120%" y="-120%" width="340%" height="340%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="b"/>
+              <feColorMatrix in="b" type="matrix" values=".08 .35 .5 0 .008  .42 .88 .68 0 .06  .28 .76 .88 0 .036  0 0 0 .5 0" result="c"/>
+              <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="fvcf" x="-220%" y="-220%" width="540%" height="540%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <linearGradient id="fva1" x1="16" y1="4.3" x2="16" y2="16" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="fva2" x1="27.1" y1="9.9" x2="16" y2="16" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="fva3" x1="22.9" y1="25.5" x2="16" y2="16" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="fva4" x1="9.1" y1="25.5" x2="16" y2="16" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="fva5" x1="4.9" y1="9.9" x2="16" y2="16" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+          </defs>
+          <circle cx="16" cy="16" r="15.5" fill="rgba(0,180,160,.03)"/>
+          <circle cx="16" cy="16" r="13.8" fill="none" stroke="rgba(200,146,42,.15)" stroke-width=".45"/>
+          <g filter="url(#fvf)">
+            <path d="M16,4.3 C21.4,10.6 19.4,16 16,16" fill="none" stroke="url(#fva1)" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M27.1,9.9 C22.7,19.3 16.8,19.1 16,16" fill="none" stroke="url(#fva2)" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M22.9,25.5 C14.8,23.6 13.6,17.9 16,16" fill="none" stroke="url(#fva3)" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M9.1,25.5 C8.5,17.1 13.6,13.9 16,16" fill="none" stroke="url(#fva4)" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M4.9,9.9 C12.5,9.2 16.8,12.7 16,16" fill="none" stroke="url(#fva5)" stroke-width="1.6" stroke-linecap="round"/>
+          </g>
+          <circle cx="16"   cy="4.3"  r="1.7" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="27.1" cy="9.9"  r="1.7" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="22.9" cy="25.5" r="1.7" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="9.1"  cy="25.5" r="1.7" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="4.9"  cy="9.9"  r="1.7" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="16" cy="16" r="6" fill="url(#fvc)" opacity=".44" filter="url(#fvcf)"/>
+          <circle cx="16" cy="16" r="3.4" fill="url(#fvc)"/>
+          <circle cx="16" cy="16" r="1.3" fill="#FFFBE8"/>
+        </svg>
+      </div>
+      <span class="el">Favicon · 32 × 32</span>
+    </div>
+
+    <!-- ── App Icon 192×192 ── -->
+    <div class="ec">
+      <div class="ef round">
+        <svg viewBox="0 0 192 192" width="136" height="136" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="apc" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stop-color="#FFF"/>
+              <stop offset="16%"  stop-color="#FFFBE0"/>
+              <stop offset="40%"  stop-color="#F5C85A"/>
+              <stop offset="72%"  stop-color="#C0880A" stop-opacity=".56"/>
+              <stop offset="100%" stop-color="#7A5000" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="apamb" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stop-color="#00C4B0" stop-opacity=".046"/>
+              <stop offset="100%" stop-color="transparent"/>
+            </radialGradient>
+            <filter id="apf" x="-72%" y="-72%" width="244%" height="244%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/>
+              <feColorMatrix in="b" type="matrix" values=".08 .35 .5 0 .008  .42 .88 .68 0 .06  .28 .76 .88 0 .036  0 0 0 .46 0" result="c"/>
+              <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="apcf" x="-260%" y="-260%" width="620%" height="620%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <!-- scale factor 0.738: 260→192, center 130→96 -->
+            <linearGradient id="apa1" x1="96" y1="25.8" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"  stop-color="#3DDBC8" stop-opacity=".96"/><stop offset="48%" stop-color="#C8922A"/><stop offset="100%" stop-color="#F0D070"/></linearGradient>
+            <linearGradient id="apa2" x1="162.7" y1="74.2" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"  stop-color="#3DDBC8" stop-opacity=".96"/><stop offset="48%" stop-color="#C8922A"/><stop offset="100%" stop-color="#F0D070"/></linearGradient>
+            <linearGradient id="apa3" x1="137.1" y1="152.7" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"  stop-color="#3DDBC8" stop-opacity=".96"/><stop offset="48%" stop-color="#C8922A"/><stop offset="100%" stop-color="#F0D070"/></linearGradient>
+            <linearGradient id="apa4" x1="54.8" y1="152.7" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"  stop-color="#3DDBC8" stop-opacity=".96"/><stop offset="48%" stop-color="#C8922A"/><stop offset="100%" stop-color="#F0D070"/></linearGradient>
+            <linearGradient id="apa5" x1="29.2" y1="74.2" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"  stop-color="#3DDBC8" stop-opacity=".96"/><stop offset="48%" stop-color="#C8922A"/><stop offset="100%" stop-color="#F0D070"/></linearGradient>
+          </defs>
+          <circle cx="96" cy="96" r="95"   fill="url(#apamb)"/>
+          <circle cx="96" cy="96" r="83"   fill="none" stroke="rgba(200,146,42,.12)" stroke-width=".5"/>
+          <circle cx="96" cy="96" r="74.5" fill="none" stroke="rgba(0,196,176,.16)" stroke-width=".66" stroke-dasharray="4 11"
+                  style="transform-origin:96px 96px;animation:rcw 52s linear infinite"/>
+          <!-- arm halos -->
+          <g filter="url(#apf)" opacity=".23">
+            <path d="M96,25.8 C128.4,63.5 116.5,96 96,96"      fill="none" stroke="#3DDBC8" stroke-width="7" stroke-linecap="round"/>
+            <path d="M162.7,74.2 C136.7,116.7 102.2,115.5 96,96" fill="none" stroke="#3DDBC8" stroke-width="7" stroke-linecap="round"/>
+            <path d="M137.1,152.7 C88.8,141.1 79.2,108 96,96"    fill="none" stroke="#3DDBC8" stroke-width="7" stroke-linecap="round"/>
+            <path d="M54.8,152.7 C50.7,103 79.2,83.6 96,96"      fill="none" stroke="#3DDBC8" stroke-width="7" stroke-linecap="round"/>
+            <path d="M29.2,74.2 C75.1,55.1 102.2,76.2 96,96"     fill="none" stroke="#3DDBC8" stroke-width="7" stroke-linecap="round"/>
+          </g>
+          <!-- main arms -->
+          <g filter="url(#apf)">
+            <path d="M96,25.8 C128.4,63.5 116.5,96 96,96"      fill="none" stroke="url(#apa1)" stroke-width="1.92" stroke-linecap="round"/>
+            <path d="M162.7,74.2 C136.7,116.7 102.2,115.5 96,96" fill="none" stroke="url(#apa2)" stroke-width="1.92" stroke-linecap="round"/>
+            <path d="M137.1,152.7 C88.8,141.1 79.2,108 96,96"    fill="none" stroke="url(#apa3)" stroke-width="1.92" stroke-linecap="round"/>
+            <path d="M54.8,152.7 C50.7,103 79.2,83.6 96,96"      fill="none" stroke="url(#apa4)" stroke-width="1.92" stroke-linecap="round"/>
+            <path d="M29.2,74.2 C75.1,55.1 102.2,76.2 96,96"     fill="none" stroke="url(#apa5)" stroke-width="1.92" stroke-linecap="round"/>
+          </g>
+          <!-- tips -->
+          <circle cx="96"     cy="25.8"  r="2.4" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="162.7"  cy="74.2"  r="2.4" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="137.1"  cy="152.7" r="2.4" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="54.8"   cy="152.7" r="2.4" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="29.2"   cy="74.2"  r="2.4" fill="#7FFFD4" opacity=".9"/>
+          <!-- pentagon -->
+          <polygon points="96,74.1 117.07,89.16 109.01,113.91 82.99,113.91 74.93,89.16"
+                   fill="none" stroke="rgba(212,168,71,.22)" stroke-width=".62"/>
+          <!-- inner ring CCW -->
+          <circle cx="96" cy="96" r="25.5" fill="none"
+                  stroke="rgba(212,168,71,.18)" stroke-width=".62" stroke-dasharray="3 9"
+                  style="transform-origin:96px 96px;animation:rccw 25s linear infinite"/>
+          <!-- pearl ring CW -->
+          <g style="transform-origin:96px 96px;animation:rcw 18s linear infinite" opacity=".5">
+            <circle cx="96"    cy="59"    r="1.3" fill="rgba(212,168,71,.95)"/>
+            <circle cx="122.2" cy="70"    r="1.3" fill="rgba(212,168,71,.95)"/>
+            <circle cx="133"   cy="96"    r="1.3" fill="rgba(212,168,71,.95)"/>
+            <circle cx="122.2" cy="122"   r="1.3" fill="rgba(212,168,71,.95)"/>
+            <circle cx="96"    cy="133"   r="1.3" fill="rgba(212,168,71,.95)"/>
+            <circle cx="69.8"  cy="122"   r="1.3" fill="rgba(212,168,71,.95)"/>
+            <circle cx="59"    cy="96"    r="1.3" fill="rgba(212,168,71,.95)"/>
+            <circle cx="69.8"  cy="70"    r="1.3" fill="rgba(212,168,71,.95)"/>
+          </g>
+          <!-- core -->
+          <circle cx="96" cy="96" r="22" fill="url(#apc)" opacity=".32"
+                  style="transform-origin:96px 96px;animation:pulse 4.5s ease-in-out infinite"/>
+          <circle cx="96" cy="96" r="13" fill="url(#apc)" filter="url(#apcf)"
+                  style="animation:glow 2.8s ease-in-out infinite"/>
+          <circle cx="96" cy="96" r="3.2" fill="#FFF8D8"/>
+          <circle cx="96" cy="96" r="1.5" fill="#FFF"/>
+        </svg>
+      </div>
+      <span class="el">App Icon · 192 × 192</span>
+    </div>
+
+    <!-- ── Horizontal Lockup ── -->
+    <div class="ec" style="grid-column:1/-1">
+      <div class="ef wide">
+        <svg viewBox="0 0 560 100" width="100%" style="max-width:560px" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="hlc" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stop-color="#FFF"/>
+              <stop offset="26%" stop-color="#F5C85A"/>
+              <stop offset="100%" stop-color="#7A5000" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="hlf" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="b"/>
+              <feColorMatrix in="b" type="matrix" values=".08 .35 .5 0 .008  .42 .88 .68 0 .06  .28 .76 .88 0 .036  0 0 0 .45 0" result="c"/>
+              <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="hlcf" x="-220%" y="-220%" width="540%" height="540%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="5.5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <!-- center 50,50; r_arm=36 -->
+            <linearGradient id="hla1" x1="50" y1="14" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="hla2" x1="84.3" y1="29.4" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="hla3" x1="71.3" y1="78.4" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="hla4" x1="28.7" y1="78.4" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="hla5" x1="15.7" y1="29.4" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#3DDBC8" stop-opacity=".9"/><stop offset="100%" stop-color="#D4A847"/></linearGradient>
+            <linearGradient id="hlwg" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%"   stop-color="#FFFBE8"/>
+              <stop offset="28%"  stop-color="#F7E4A0"/>
+              <stop offset="55%"  stop-color="#D4A847"/>
+              <stop offset="80%"  stop-color="#A87830"/>
+              <stop offset="100%" stop-color="#6E4010"/>
+            </linearGradient>
+          </defs>
+          <!-- Icon: center (50,50) -->
+          <circle cx="50" cy="50" r="48" fill="rgba(0,180,160,.025)"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(200,146,42,.13)" stroke-width=".5"/>
+          <circle cx="50" cy="50" r="37" fill="none" stroke="rgba(0,196,176,.18)" stroke-width=".65" stroke-dasharray="4 10"
+                  style="transform-origin:50px 50px;animation:rcw 52s linear infinite"/>
+          <!-- arm halos -->
+          <g opacity=".18" filter="url(#hlf)">
+            <path d="M50,14 C66.4,33.7 60.8,50 50,50"    fill="none" stroke="#3DDBC8" stroke-width="5" stroke-linecap="round"/>
+            <path d="M84.3,29.4 C69.5,55.3 51.7,54.8 50,50" fill="none" stroke="#3DDBC8" stroke-width="5" stroke-linecap="round"/>
+            <path d="M71.3,78.4 C43,71.2 37.2,53.5 50,50"   fill="none" stroke="#3DDBC8" stroke-width="5" stroke-linecap="round"/>
+            <path d="M28.7,78.4 C26.5,50.4 37.2,41.1 50,50" fill="none" stroke="#3DDBC8" stroke-width="5" stroke-linecap="round"/>
+            <path d="M15.7,29.4 C39.1,28.5 51.7,37.9 50,50" fill="none" stroke="#3DDBC8" stroke-width="5" stroke-linecap="round"/>
+          </g>
+          <!-- main arms -->
+          <g filter="url(#hlf)">
+            <path d="M50,14 C66.4,33.7 60.8,50 50,50"    fill="none" stroke="url(#hla1)" stroke-width="1.55" stroke-linecap="round"/>
+            <path d="M84.3,29.4 C69.5,55.3 51.7,54.8 50,50" fill="none" stroke="url(#hla2)" stroke-width="1.55" stroke-linecap="round"/>
+            <path d="M71.3,78.4 C43,71.2 37.2,53.5 50,50"   fill="none" stroke="url(#hla3)" stroke-width="1.55" stroke-linecap="round"/>
+            <path d="M28.7,78.4 C26.5,50.4 37.2,41.1 50,50" fill="none" stroke="url(#hla4)" stroke-width="1.55" stroke-linecap="round"/>
+            <path d="M15.7,29.4 C39.1,28.5 51.7,37.9 50,50" fill="none" stroke="url(#hla5)" stroke-width="1.55" stroke-linecap="round"/>
+          </g>
+          <!-- tips -->
+          <circle cx="50"  cy="14"  r="2"   fill="#7FFFD4" opacity=".9"/>
+          <circle cx="84.3" cy="29.4" r="2" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="71.3" cy="78.4" r="2" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="28.7" cy="78.4" r="2" fill="#7FFFD4" opacity=".9"/>
+          <circle cx="15.7" cy="29.4" r="2" fill="#7FFFD4" opacity=".9"/>
+          <!-- core -->
+          <circle cx="50" cy="50" r="12.5" fill="url(#hlc)" opacity=".36"
+                  style="transform-origin:50px 50px;animation:pulse 4.5s ease-in-out infinite"/>
+          <circle cx="50" cy="50" r="7.5"  fill="url(#hlc)" filter="url(#hlcf)"
+                  style="animation:glow 2.8s ease-in-out infinite"/>
+          <circle cx="50" cy="50" r="2.4"  fill="#FFF8D8"/>
+          <circle cx="50" cy="50" r="1.1"  fill="#FFF"/>
+
+          <!-- Vertical divider -->
+          <line x1="112" y1="16" x2="112" y2="84"
+                stroke="rgba(212,168,71,.18)" stroke-width=".5"/>
+
+          <!-- WORDMARK gradient text via fill + rect mask trick -->
+          <text x="130" y="44"
+                font-family="'Optima','Candara','Century Gothic',Verdana,sans-serif"
+                font-size="24" font-weight="400" letter-spacing="10"
+                fill="url(#hlwg)">MANTHANA</text>
+
+          <!-- Thin underrule -->
+          <line x1="130" y1="58" x2="545" y2="58"
+                stroke="rgba(212,168,71,.16)" stroke-width=".45"/>
+
+          <!-- Tagline -->
+          <text x="130" y="73"
+                font-family="'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif"
+                font-style="italic" font-size="10.5" letter-spacing="1.8"
+                fill="rgba(245,240,232,.32)">Churning the ocean of medical knowledge</text>
+        </svg>
+      </div>
+      <span class="el">Horizontal Lockup · Full</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════ LIGHT BACKGROUNDS ══════ -->
+<section class="ls">
+  <p class="lsl">Light Background Variants</p>
+  <div class="lg">
+
+    <!-- On white -->
+    <div class="lcard">
+      <svg viewBox="0 0 260 260" width="148" height="148" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="lc" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"  stop-color="#C8922A"/>
+            <stop offset="52%" stop-color="#9B6A10" stop-opacity=".72"/>
+            <stop offset="100%" stop-color="#7A5000" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="lf" x="-65%" y="-65%" width="230%" height="230%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <linearGradient id="la1" x1="130" y1="35" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"  stop-color="#007A6E" stop-opacity=".82"/><stop offset="100%" stop-color="#9B6A10"/></linearGradient>
+          <linearGradient id="la2" x1="220.4" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"  stop-color="#007A6E" stop-opacity=".82"/><stop offset="100%" stop-color="#9B6A10"/></linearGradient>
+          <linearGradient id="la3" x1="185.8" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"  stop-color="#007A6E" stop-opacity=".82"/><stop offset="100%" stop-color="#9B6A10"/></linearGradient>
+          <linearGradient id="la4" x1="74.2" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"  stop-color="#007A6E" stop-opacity=".82"/><stop offset="100%" stop-color="#9B6A10"/></linearGradient>
+          <linearGradient id="la5" x1="39.6" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"  stop-color="#007A6E" stop-opacity=".82"/><stop offset="100%" stop-color="#9B6A10"/></linearGradient>
+        </defs>
+        <circle cx="130" cy="130" r="112.5" fill="none" stroke="rgba(155,106,16,.16)" stroke-width=".5"/>
+        <circle cx="130" cy="130" r="101"   fill="none" stroke="rgba(0,122,110,.18)" stroke-width=".65" stroke-dasharray="5 12"/>
+        <g filter="url(#lf)">
+          <path d="M130,35 C173.84,86.16 158,130 130,130"     fill="none" stroke="url(#la1)" stroke-width="2" stroke-linecap="round"/>
+          <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="url(#la2)" stroke-width="2" stroke-linecap="round"/>
+          <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="url(#la3)" stroke-width="2" stroke-linecap="round"/>
+          <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130"   fill="none" stroke="url(#la4)" stroke-width="2" stroke-linecap="round"/>
+          <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130"   fill="none" stroke="url(#la5)" stroke-width="2" stroke-linecap="round"/>
+        </g>
+        <circle cx="130"   cy="35"    r="3"   fill="#007A6E" opacity=".7"/>
+        <circle cx="220.4" cy="100.6" r="3"   fill="#007A6E" opacity=".7"/>
+        <circle cx="185.8" cy="206.9" r="3"   fill="#007A6E" opacity=".7"/>
+        <circle cx="74.2"  cy="206.9" r="3"   fill="#007A6E" opacity=".7"/>
+        <circle cx="39.6"  cy="100.6" r="3"   fill="#007A6E" opacity=".7"/>
+        <polygon points="130,100 158.53,120.73 147.63,154.27 112.37,154.27 101.47,120.73"
+                 fill="none" stroke="rgba(155,106,16,.28)" stroke-width=".65"/>
+        <circle cx="130" cy="130" r="15" fill="url(#lc)" opacity=".88"/>
+        <circle cx="130" cy="130" r="3.8" fill="#9B6A10"/>
+        <circle cx="130" cy="130" r="1.5" fill="#5A3A00"/>
+      </svg>
+      <div class="lwm" style="color:#3C2200">MANTHANA</div>
+      <div class="ltg" style="color:rgba(60,34,0,.36)">Churning the ocean of medical knowledge</div>
+    </div>
+
+    <!-- On warm parchment -->
+    <div class="pcard">
+      <svg viewBox="0 0 260 260" width="148" height="148" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="pc" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"  stop-color="#D4A847"/>
+            <stop offset="50%" stop-color="#9B6A10" stop-opacity=".82"/>
+            <stop offset="100%" stop-color="#7A5000" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="pf" x="-65%" y="-65%" width="230%" height="230%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <circle cx="130" cy="130" r="112.5" fill="none" stroke="rgba(140,95,10,.18)" stroke-width=".5"/>
+        <circle cx="130" cy="130" r="101"   fill="none" stroke="rgba(0,100,88,.16)" stroke-width=".65" stroke-dasharray="5 12"/>
+        <g filter="url(#pf)">
+          <path d="M130,35 C173.84,86.16 158,130 130,130"     fill="none" stroke="#007A6E" stroke-opacity=".72" stroke-width="2" stroke-linecap="round"/>
+          <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="#007A6E" stroke-opacity=".72" stroke-width="2" stroke-linecap="round"/>
+          <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="#007A6E" stroke-opacity=".72" stroke-width="2" stroke-linecap="round"/>
+          <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130"   fill="none" stroke="#007A6E" stroke-opacity=".72" stroke-width="2" stroke-linecap="round"/>
+          <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130"   fill="none" stroke="#007A6E" stroke-opacity=".72" stroke-width="2" stroke-linecap="round"/>
+        </g>
+        <circle cx="130"   cy="35"    r="3" fill="#007A6E" opacity=".6"/>
+        <circle cx="220.4" cy="100.6" r="3" fill="#007A6E" opacity=".6"/>
+        <circle cx="185.8" cy="206.9" r="3" fill="#007A6E" opacity=".6"/>
+        <circle cx="74.2"  cy="206.9" r="3" fill="#007A6E" opacity=".6"/>
+        <circle cx="39.6"  cy="100.6" r="3" fill="#007A6E" opacity=".6"/>
+        <polygon points="130,100 158.53,120.73 147.63,154.27 112.37,154.27 101.47,120.73"
+                 fill="none" stroke="rgba(140,95,10,.3)" stroke-width=".65"/>
+        <circle cx="130" cy="130" r="15" fill="url(#pc)" opacity=".92"/>
+        <circle cx="130" cy="130" r="3.8" fill="#9B6A10"/>
+        <circle cx="130" cy="130" r="1.5" fill="#5A3A00"/>
+      </svg>
+      <div class="lwm" style="color:#2E1800">MANTHANA</div>
+      <div class="ltg" style="color:rgba(46,24,0,.36)">Churning the ocean of medical knowledge</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════ COLOR PALETTE ══════ -->
+<div class="pal">
+  <p class="psl">Brand Palette</p>
+  <div class="sw">
+    <div class="s"><div class="sd" style="background:#000000;border:.5px solid rgba(255,255,255,.1)"></div><div class="sh">#000000</div></div>
+    <div class="s"><div class="sd" style="background:#020916"></div>                          <div class="sh">#020916</div></div>
+    <div class="s"><div class="sd" style="background:#6E4010"></div>                          <div class="sh">#6E4010</div></div>
+    <div class="s"><div class="sd" style="background:#A87830"></div>                          <div class="sh">#A87830</div></div>
+    <div class="s"><div class="sd" style="background:#C8922A"></div>                          <div class="sh">#C8922A</div></div>
+    <div class="s"><div class="sd" style="background:#D4A847"></div>                          <div class="sh">#D4A847</div></div>
+    <div class="s"><div class="sd" style="background:#ECC967"></div>                          <div class="sh">#ECC967</div></div>
+    <div class="s"><div class="sd" style="background:#F7E4A0"></div>                          <div class="sh">#F7E4A0</div></div>
+    <div class="s"><div class="sd" style="background:#FFFBE8"></div>                          <div class="sh">#FFFBE8</div></div>
+    <div class="s"><div class="sd" style="background:#005A54"></div>                          <div class="sh">#005A54</div></div>
+    <div class="s"><div class="sd" style="background:#009B8E"></div>                          <div class="sh">#009B8E</div></div>
+    <div class="s"><div class="sd" style="background:#00C4B0"></div>                          <div class="sh">#00C4B0</div></div>
+    <div class="s"><div class="sd" style="background:#3DDBC8"></div>                          <div class="sh">#3DDBC8</div></div>
+    <div class="s"><div class="sd" style="background:#A0EEE6"></div>                          <div class="sh">#A0EEE6</div></div>
+  </div>
+</div>
+
+<!-- ══════ FOOTER ══════ -->
+<footer class="ft">
+  <p class="ftx">
+    MANTHANA
+    <span class="ft-diamond"></span>
+    Churning the ocean of medical knowledge
+    <span class="ft-diamond"></span>
+    © 2025
+  </p>
+</footer>
+
+<script>
+(function(){
+/* ══════ STAR CANVAS ══════ */
+const canvas = document.getElementById('cosmos');
+const ctx    = canvas.getContext('2d');
+let W, H, stars = [], drifts = [];
+const N = 280;
+
+function resize(){
+  W = canvas.width  = canvas.offsetWidth;
+  H = canvas.height = canvas.offsetHeight;
+}
+function initStars(){
+  stars  = [];
+  drifts = [];
+  for(let i=0;i<N;i++){
+    const r = Math.random();
+    stars.push({
+      x: Math.random()*W,
+      y: Math.random()*H,
+      s: r < .12 ? Math.random()*.9+.5 : r < .4 ? Math.random()*.4+.2 : Math.random()*.2+.08,
+      a: Math.random()*.6+.08,
+      speed: Math.random()*.0004+.0001,
+      phase: Math.random()*Math.PI*2,
+      teal: Math.random() < .18
+    });
+    drifts.push({dx:(Math.random()-.5)*.018, dy:(Math.random()-.5)*.008});
+  }
+}
+
+let t = 0;
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  t += .012;
+  stars.forEach((s,i)=>{
+    const flicker = s.a * (.7 + .3*Math.sin(t * s.speed * 1000 + s.phase));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.s, 0, Math.PI*2);
+    ctx.fillStyle = s.teal
+      ? `rgba(61,219,200,${flicker})`
+      : `rgba(245,240,232,${flicker})`;
+    ctx.fill();
+    s.x += drifts[i].dx;
+    s.y += drifts[i].dy;
+    if(s.x < -2) s.x = W+2;
+    if(s.x > W+2) s.x = -2;
+    if(s.y < -2) s.y = H+2;
+    if(s.y > H+2) s.y = -2;
+  });
+
+  // occasional shooting star
+  if(Math.random() < .0018){
+    const sx = Math.random()*W*.7, sy = Math.random()*H*.4;
+    const len = 80 + Math.random()*120;
+    const ang = .4 + Math.random()*.4;
+    const gr = ctx.createLinearGradient(sx,sy,sx+Math.cos(ang)*len,sy+Math.sin(ang)*len);
+    gr.addColorStop(0,'rgba(255,255,255,0)');
+    gr.addColorStop(.3,'rgba(212,168,71,.7)');
+    gr.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.strokeStyle = gr;
+    ctx.lineWidth   = .8;
+    ctx.beginPath();
+    ctx.moveTo(sx,sy);
+    ctx.lineTo(sx+Math.cos(ang)*len, sy+Math.sin(ang)*len);
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(draw);
+}
+window.addEventListener('resize',()=>{resize();initStars();});
+resize(); initStars(); draw();
+
+/* ══════ MAIN SVG: OUTER TICK RING (60 ticks) ══════ */
+(function buildOuter(){
+  const g  = document.getElementById('oticks');
+  const cx = 130, cy = 130, r1 = 112.5, r0maj = 108, r0min = 110.2;
+  for(let i=0;i<60;i++){
+    const a   = (i*6 - 90) * Math.PI/180;
+    const maj = i%5===0;
+    const r0  = maj ? r0maj : r0min;
+    const ln  = document.createElementNS('http://www.w3.org/2000/svg','line');
+    ln.setAttribute('x1',(cx + r0  * Math.cos(a)).toFixed(2));
+    ln.setAttribute('y1',(cy + r0  * Math.sin(a)).toFixed(2));
+    ln.setAttribute('x2',(cx + r1  * Math.cos(a)).toFixed(2));
+    ln.setAttribute('y2',(cy + r1  * Math.sin(a)).toFixed(2));
+    ln.setAttribute('stroke', maj ? 'rgba(212,168,71,.52)' : 'rgba(212,168,71,.18)');
+    ln.setAttribute('stroke-width', maj ? '1.1' : '0.42');
+    g.appendChild(ln);
+  }
+})();
+
+/* ══════ INNER COMPASS RING (24 ticks at r=59) ══════ */
+(function buildInner(){
+  const g  = document.getElementById('iticks');
+  const cx = 130, cy = 130, r1 = 59, r0 = 56.2;
+  for(let i=0;i<24;i++){
+    const a   = (i*15 - 90) * Math.PI/180;
+    const maj = i%6===0;
+    const ln  = document.createElementNS('http://www.w3.org/2000/svg','line');
+    ln.setAttribute('x1',(cx + (maj?54.5:55.8) * Math.cos(a)).toFixed(2));
+    ln.setAttribute('y1',(cy + (maj?54.5:55.8) * Math.sin(a)).toFixed(2));
+    ln.setAttribute('x2',(cx + r1 * Math.cos(a)).toFixed(2));
+    ln.setAttribute('y2',(cy + r1 * Math.sin(a)).toFixed(2));
+    ln.setAttribute('stroke', maj ? 'rgba(212,168,71,.4)' : 'rgba(212,168,71,.14)');
+    ln.setAttribute('stroke-width', maj ? '0.9' : '0.38');
+    g.appendChild(ln);
+  }
+})();
+
+/* ══════ BEZIER MIDPOINT NODES ══════ */
+(function buildArmNodes(){
+  const g = document.getElementById('armNodes');
+  const arms = [
+    {p0:{x:130,y:35},   p1:{x:173.84,y:86.16}, p2:{x:158,y:130},      p3:{x:130,y:130}},
+    {p0:{x:220.4,y:100.6},p1:{x:185.24,y:158.15},p2:{x:138.65,y:156.63},p3:{x:130,y:130}},
+    {p0:{x:185.8,y:206.9},p1:{x:120.36,y:191.24},p2:{x:107.35,y:146.47},p3:{x:130,y:130}},
+    {p0:{x:74.2,y:206.9}, p1:{x:68.76,y:139.64}, p2:{x:107.35,y:113.53},p3:{x:130,y:130}},
+    {p0:{x:39.6,y:100.6}, p1:{x:101.85,y:74.76}, p2:{x:138.65,y:103.37},p3:{x:130,y:130}}
+  ];
+  function bp(t,a){
+    const m=1-t;
+    return{
+      x:m*m*m*a.p0.x+3*m*m*t*a.p1.x+3*m*t*t*a.p2.x+t*t*t*a.p3.x,
+      y:m*m*m*a.p0.y+3*m*m*t*a.p1.y+3*m*t*t*a.p2.y+t*t*t*a.p3.y
+    }
+  }
+  const ts = [0.22, 0.46, 0.7];
+  const rs = [2.1, 1.5, 0.9];
+  const ops= [0.62, 0.44, 0.26];
+  arms.forEach(arm=>{
+    ts.forEach((t,i)=>{
+      const p = bp(t,arm);
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',p.x.toFixed(2));
+      c.setAttribute('cy',p.y.toFixed(2));
+      c.setAttribute('r', rs[i]);
+      c.setAttribute('fill','#3DDBC8');
+      c.setAttribute('opacity',ops[i]);
+      g.appendChild(c);
+    });
+  });
+})();
+
+/* ══════ SUN RAYS (16 rays from core) ══════ */
+(function buildSunRays(){
+  const g  = document.getElementById('sunRays');
+  const cx = 130, cy = 130;
+  const ri = 20, ro = [36,28,36,28,36,28,36,28,36,28,36,28,36,28,36,28];
+  for(let i=0;i<16;i++){
+    const a = (i*22.5 - 90) * Math.PI/180;
+    const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+    ln.setAttribute('x1',(cx + ri     * Math.cos(a)).toFixed(2));
+    ln.setAttribute('y1',(cy + ri     * Math.sin(a)).toFixed(2));
+    ln.setAttribute('x2',(cx + ro[i]  * Math.cos(a)).toFixed(2));
+    ln.setAttribute('y2',(cy + ro[i]  * Math.sin(a)).toFixed(2));
+    ln.setAttribute('stroke','rgba(212,168,71,.55)');
+    ln.setAttribute('stroke-width','0.55');
+    ln.setAttribute('stroke-linecap','round');
+    g.appendChild(ln);
+  }
+})();
+
+})();
+</script>
+</body>
+</html>
