@@ -1,0 +1,16 @@
+[run]
+source = .
+omit =
+    */tests/*
+    */.venv/*
+    */__pycache__/*
+    */site-packages/*
+    */.git/*
+
+[report]
+# Critical paths: api, shared utils, search_utils
+# Target 60%+ on these
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError

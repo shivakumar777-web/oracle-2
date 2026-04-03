@@ -2,9 +2,16 @@
 .env
 .env.production
 
+# Local IDE / test artifacts
+.cursor/
+.coverage
+
 # Logs
 *.log
 manthana.log
+
+# Audit DB (SQLite)
+manthana_audit.db
 
 # Docker volumes data
 elasticsearch-data/
@@ -38,3 +45,7 @@ Thumbs.db
 
 # Local AI research/tool repos (huge, nested git, never commit)
 ai-tools/
+
+# Backup files (ad-hoc rollbacks)
+*.bak
+*.bak.*

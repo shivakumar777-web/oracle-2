@@ -1,0 +1,26 @@
+{
+  "name": "MANTHANA — Cosmic Medical Intelligence",
+  "short_name": "MANTHANA",
+  "description": "Where ancient wisdom meets modern medicine. Five oceans, one Amrita.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020610",
+  "theme_color": "#020610",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["medical", "health", "productivity"],
+  "lang": "en",
+  "dir": "ltr"
+}

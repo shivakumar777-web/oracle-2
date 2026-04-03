@@ -2,7 +2,7 @@ import sys
 import os
 import io
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 # Add project root to path for shared module access
 PROJECT_ROOT = os.path.abspath(
@@ -35,6 +35,27 @@ logger = logging.getLogger("manthana-pathology")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
+try:
+    from transformers import pipeline  # type: ignore[import]
+
+    _TRANSFORMERS_AVAILABLE = True
+except Exception:  # pragma: no cover
+    pipeline = None  # type: ignore[assignment]
+    _TRANSFORMERS_AVAILABLE = False
+
+PATCH_MODEL = None
+PATCH_MODEL_NAME: str = "heuristic-intensity"
+
+_PATCH_DISCLAIMER = (
+    "Patch-level classifier. Not a whole-slide analysis system. "
+    "Training data predominantly Western. India-specific histopathology validation pending."
+)
+_INDIA_HEURISTIC_DISCLAIMER = (
+    "This analysis uses statistical image features, not a validated clinical AI model. "
+    "Training data predominantly Western. India-specific histopathology validation pending. "
+    "Results must be interpreted by a qualified medical professional."
+)
 
 
 class SlideRegion(BaseModel):
@@ -92,7 +113,39 @@ def analyze_tile(image: Image.Image) -> TileAnalysis:
     else:
         classification = "low_cellularity"
     confidence = float(0.5 + abs(intensity - 0.5))
-    return TileAnalysis(classification=classification, confidence=min(0.99, confidence))
+    return TileAnalysis(classification=classification, confidence=min(0.65, confidence))
+
+
+def _map_patch_label_to_tissue(label: str) -> str:
+    l = label.lower()
+    if any(k in l for k in ["adenocarcinoma", "carcinoma", "malignant", "cancer", "tumor", "tumour"]):
+        return "tumor"
+    if any(k in l for k in ["inflammation", "inflammatory"]):
+        return "inflammatory"
+    if any(k in l for k in ["normal", "benign", "healthy"]):
+        return "normal"
+    return "benign_like"
+
+
+def _analyze_patch_ml(image: Image.Image) -> Optional[Dict[str, Any]]:
+    if PATCH_MODEL is None:
+        return None
+    try:
+        outs = PATCH_MODEL(image.convert("RGB"))
+        best = outs[0] if outs else {"label": "unknown", "score": 0.0}
+        label = str(best.get("label", "unknown"))
+        score = float(best.get("score", 0.0))
+        tissue = _map_patch_label_to_tissue(label)
+        abnormality_score = float(min(1.0, max(0.0, score if tissue == "tumor" else (1.0 - score if tissue == "normal" else score))))
+        return {
+            "label": label,
+            "score": score,
+            "tissue_type": tissue,
+            "abnormality_score": abnormality_score,
+        }
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Patch ML inference failed: %s", exc)
+        return None
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -116,6 +169,26 @@ def create_app(settings: Settings) -> FastAPI:
 
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
+
+    # Load patch classifier at startup (best-effort)
+    global PATCH_MODEL, PATCH_MODEL_NAME
+    if _TRANSFORMERS_AVAILABLE and pipeline is not None and PATCH_MODEL is None:
+        hf_token = (os.getenv("HF_TOKEN") or "").strip()
+        # Prefer CONCH only if token is provided; otherwise a public histopathology classifier
+        preferred = "mahmoodlab/conch" if hf_token else "Guldeniz/vit-base-patch16-224-in21k-lung_and_colon"
+        try:
+            PATCH_MODEL = pipeline(
+                "image-classification",
+                model=preferred,
+                token=hf_token or None,
+                device=-1,
+            )
+            PATCH_MODEL_NAME = preferred
+            logger.info("Loaded pathology patch model: %s", preferred)
+        except Exception as exc:  # pragma: no cover
+            PATCH_MODEL = None
+            PATCH_MODEL_NAME = "heuristic-intensity"
+            logger.warning("Failed to load pathology patch model, using heuristic: %s", exc)
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):
@@ -151,6 +224,7 @@ def create_app(settings: Settings) -> FastAPI:
         data = {
             "service": "pathology",
             "capabilities": ["slide", "tile"],
+            "model": PATCH_MODEL_NAME,
         }
         payload = format_response(
             status="success",
@@ -193,10 +267,26 @@ def create_app(settings: Settings) -> FastAPI:
             )
             return JSONResponse(status_code=500, content=payload)
 
+        data = result.dict()
+        ml = _analyze_patch_ml(img)
+        if ml is not None:
+            # Keep existing slide schema, but refine tissue_type + abnormality_score and add model
+            data["tissue_type"] = ml["tissue_type"]
+            data["abnormality_score"] = float(ml["abnormality_score"])
+            data["model"] = PATCH_MODEL_NAME
+            data["model_type"] = "ml_experimental"
+            data["validated"] = False
+            data["disclaimer"] = _PATCH_DISCLAIMER
+            data["validation_note"] = "Training data predominantly Western. India-specific histopathology validation pending."
+        else:
+            data["model"] = "heuristic-intensity"
+            data["model_type"] = "heuristic"
+            data["validated"] = False
+            data["disclaimer"] = _INDIA_HEURISTIC_DISCLAIMER
         payload = format_response(
             status="success",
             service="pathology",
-            data=result.dict(),
+            data=data,
             error=None,
             request_id=request_id,
             disclaimer=DISCLAIMER,
@@ -234,10 +324,27 @@ def create_app(settings: Settings) -> FastAPI:
             )
             return JSONResponse(status_code=500, content=payload)
 
+        data = result.dict()
+        ml = _analyze_patch_ml(img)
+        if ml is not None:
+            # Keep existing tile schema: classification + confidence; cap 0.82 for non-India-validated
+            data["classification"] = ml["tissue_type"]
+            data["confidence"] = float(min(0.82, ml["score"]))
+            data["model"] = PATCH_MODEL_NAME
+            data["model_type"] = "ml_experimental"
+            data["validated"] = False
+            data["disclaimer"] = _PATCH_DISCLAIMER
+            data["validation_note"] = "Training data predominantly Western. India-specific histopathology validation pending."
+            data["abnormality_score"] = float(ml["abnormality_score"])
+        else:
+            data["model"] = "heuristic-intensity"
+            data["model_type"] = "heuristic"
+            data["validated"] = False
+            data["disclaimer"] = _INDIA_HEURISTIC_DISCLAIMER
         payload = format_response(
             status="success",
             service="pathology",
-            data=result.dict(),
+            data=data,
             error=None,
             request_id=request_id,
             disclaimer=DISCLAIMER,

@@ -2,8 +2,10 @@ import io
 
 import numpy as np
 import pandas as pd
+import pytest
 
 
+@pytest.mark.integration
 async def test_ecg_analyze_csv(client_ecg):
     t = np.linspace(0, 10, 5000)
     signal = 0.5 * np.sin(2 * np.pi * 1.2 * t)

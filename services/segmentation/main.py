@@ -176,10 +176,19 @@ def create_app(settings: Settings) -> FastAPI:
                 disclaimer=DISCLAIMER,
             )
             return JSONResponse(status_code=500, content=payload)
+        data = result.dict()
+        data["model_type"] = "heuristic"
+        data[
+            "disclaimer"
+        ] = (
+            "This analysis uses statistical image features, not a validated clinical AI model. "
+            "Results must be interpreted by a qualified medical professional."
+        )
+        data["validated"] = False
         payload = format_response(
             status="success",
             service="segmentation",
-            data=result.dict(),
+            data=data,
             error=None,
             request_id=request_id,
             disclaimer=DISCLAIMER,
@@ -220,10 +229,19 @@ def create_app(settings: Settings) -> FastAPI:
                 disclaimer=DISCLAIMER,
             )
             return JSONResponse(status_code=500, content=payload)
+        data = result.dict()
+        data["model_type"] = "heuristic"
+        data[
+            "disclaimer"
+        ] = (
+            "This analysis uses statistical image features, not a validated clinical AI model. "
+            "Results must be interpreted by a qualified medical professional."
+        )
+        data["validated"] = False
         payload = format_response(
             status="success",
             service="segmentation",
-            data=result.dict(),
+            data=data,
             error=None,
             request_id=request_id,
             disclaimer=DISCLAIMER,
@@ -265,6 +283,14 @@ def create_app(settings: Settings) -> FastAPI:
                 disclaimer=DISCLAIMER,
             )
             return JSONResponse(status_code=500, content=payload)
+        data["model_type"] = "heuristic"
+        data[
+            "disclaimer"
+        ] = (
+            "This analysis uses statistical image features, not a validated clinical AI model. "
+            "Results must be interpreted by a qualified medical professional."
+        )
+        data["validated"] = False
         payload = format_response(
             status="success",
             service="segmentation",

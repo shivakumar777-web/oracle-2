@@ -29,6 +29,10 @@ search:
       weight: 3
     science:
       weight: 2
+    images:
+      weight: 1
+    videos:
+      weight: 1
     ayurveda:
       weight: 3
     homeopathy:
@@ -41,6 +45,16 @@ search:
       weight: 1
     regulatory:
       weight: 2
+
+# Premium Web: optional native engines — enable only if your SearXNG image includes them
+# (check `list_engines` / docs). Examples: arxiv, openalex, crossref, base, doaj.
+# Duplicate xpath entries above may still be used when a native engine is unavailable.
+#
+#  - name: arxiv
+#    engine: arxiv
+#    disabled: false
+#    weight: 2
+#    categories: science, medical
 
 engines:
   - name: google
@@ -268,6 +282,45 @@ engines:
     disabled: false
     weight: 2
     categories: medical
+
+  # ── IMAGE SEARCH (for /search/images endpoint) ─────────────────────
+  - name: google images
+    engine: google_images
+    disabled: false
+    weight: 2
+    categories: images
+
+  - name: bing images
+    engine: bing_images
+    disabled: false
+    weight: 2
+    categories: images
+
+  # ── VIDEO SEARCH (for /search/videos endpoint) ─────────────────────
+  - name: youtube
+    engine: youtube_noapi
+    disabled: false
+    weight: 3
+    categories: videos
+
+  - name: google videos
+    engine: google_videos
+    disabled: false
+    weight: 2
+    categories: videos
+
+  - name: bing videos
+    engine: bing_videos
+    disabled: false
+    weight: 2
+    categories: videos
+
+  - name: piped
+    engine: piped
+    disabled: false
+    weight: 1
+    categories: videos
+    piped_filter: medical
 
 outgoing:
   request_timeout: 10.0

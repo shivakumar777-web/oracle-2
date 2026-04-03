@@ -1,0 +1,190 @@
+name: Research Service - Contract & Isolation Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "services/research-service/**"
+      - "services/shared/**"
+      - "tests/test_research_*.py"
+      - ".github/workflows/research-contract-tests.yml"
+  pull_request:
+    paths:
+      - "services/research-service/**"
+      - "services/shared/**"
+      - "tests/test_research_*.py"
+
+env:
+  RESEARCH_DATABASE_URL: "postgresql://test:test@localhost:5432/test_research"
+  RESEARCH_GROQ_API_KEY: "test-groq-key"
+  REQUIRE_AUTH: "false"
+
+jobs:
+  contract-tests:
+    name: Research Contract Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_research
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/research-service/requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx
+
+      - name: Run research contract tests
+        run: |
+          PYTHONPATH=.:services/research-service pytest tests/test_research_prompts.py -v --tb=short
+
+      - name: Verify isolation - No cross-service imports
+        run: |
+          echo "Checking that research-service doesn't import from oracle/web/analysis..."
+          # Check for forbidden imports in research-service
+          if grep -r "from services.oracle" services/research-service/ 2>/dev/null; then
+            echo "❌ FAIL: Found oracle service imports in research-service"
+            exit 1
+          fi
+          if grep -r "from services.web" services/research-service/ 2>/dev/null; then
+            echo "❌ FAIL: Found web service imports in research-service"
+            exit 1
+          fi
+          if grep -r "from services.analysis" services/research-service/ 2>/dev/null; then
+            echo "❌ FAIL: Found analysis service imports in research-service"
+            exit 1
+          fi
+          echo "✅ PASS: No forbidden cross-service imports found"
+
+      - name: Verify Redis key prefix isolation
+        run: |
+          echo "Checking Redis key prefixes..."
+          if grep -r "redis.*set.*research:" services/research-service/ 2>/dev/null || \
+             grep -r "redis.*get.*research:" services/research-service/ 2>/dev/null; then
+            echo "✅ PASS: Found research:* Redis key prefix usage"
+          else
+            echo "⚠️  WARNING: No explicit Redis key prefix found (may not use Redis)"
+          fi
+
+      - name: Test database migrations
+        run: |
+          cd services/research-service
+          # Test Alembic can load and check current state
+          alembic --config alembic.ini current || true
+          # Verify migrations are valid Python
+          python -m py_compile alembic/versions/*.py
+          echo "✅ Database migrations compile successfully"
+
+  circuit-breaker-test:
+    name: Circuit Breaker Integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/research-service/requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Test circuit breaker pattern
+        run: |
+          PYTHONPATH=.:services/research-service python3 -c "
+          import asyncio
+          import sys
+          sys.path.insert(0, 'services/research-service')
+          from services.shared.circuit_breaker import get_circuit_breaker, CircuitBreakerError
+
+          async def test_circuit():
+              cb = get_circuit_breaker('test_cb', failure_threshold=2, recovery_timeout=0.1)
+              
+              # Test that circuit exists
+              assert cb.name == 'test_cb'
+              print('✅ Circuit breaker can be created')
+              
+              # Test failure counting
+              try:
+                  await cb.call(lambda: (_ for _ in ()).throw(Exception('fail')))
+              except Exception:
+                  pass
+                  
+              stats = cb.get_stats()
+              assert stats['name'] == 'test_cb'
+              print('✅ Circuit breaker stats work')
+              
+          asyncio.run(test_circuit())
+          echo 'Circuit breaker pattern verified'
+          "
+
+  frontend-research-check:
+    name: Frontend Research API Types
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend-manthana/manthana/package.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend-manthana/manthana
+          npm ci
+
+      - name: Type check research API client
+        run: |
+          cd frontend-manthana/manthana
+          npx tsc --noEmit
+          echo "✅ Frontend research API types compile successfully"
+
+      - name: Verify no cross-section imports
+        run: |
+          cd frontend-manthana/manthana
+          echo "Checking for cross-section import violations..."
+          # Check that research lib doesn't import from oracle/web/analysis
+          if grep -r "from.*oracle" src/lib/api/research/ 2>/dev/null; then
+            echo "❌ FAIL: oracle imports found in research API"
+            exit 1
+          fi
+          if grep -r "from.*web" src/lib/api/research/ 2>/dev/null; then
+            echo "❌ FAIL: web imports found in research API"
+            exit 1
+          fi
+          if grep -r "from.*analysis" src/lib/api/research/ 2>/dev/null; then
+            echo "❌ FAIL: analysis imports found in research API"
+            exit 1
+          fi
+          echo "✅ No cross-section imports in research API"

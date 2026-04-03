@@ -1,0 +1,96 @@
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "@/lib/api/oracle",
+            "message": "Research section must NOT import from oracle API. Use research-service APIs only."
+          },
+          {
+            "name": "@/lib/api/web",
+            "message": "Research section must NOT import from web API. Use research-service APIs only."
+          },
+          {
+            "name": "@/lib/api/clinical",
+            "message": "Research section must NOT import from clinical API. Use research-service APIs only."
+          }
+        ],
+        "patterns": [
+          {
+            "group": ["@/lib/api/oracle*"],
+            "message": "Research section must NOT import from oracle API. Use research-service APIs only."
+          },
+          {
+            "group": ["@/lib/api/web*"],
+            "message": "Research section must NOT import from web API. Use research-service APIs only."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/lib/api/research/**/*.ts", "src/lib/api/research/**/*.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@/lib/api/oracle",
+                "message": "Research API client must NOT import from oracle API (isolation guarantee)."
+              },
+              {
+                "name": "@/lib/api/web",
+                "message": "Research API client must NOT import from web API (isolation guarantee)."
+              },
+              {
+                "name": "@/lib/api/clinical",
+                "message": "Research API client must NOT import from clinical API (isolation guarantee)."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@/lib/api/oracle*", "@/lib/api/web*", "@/lib/api/clinical*"],
+                "message": "Research API client must NOT import from other section APIs (isolation guarantee)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/components/deep-research/**/*.tsx", "src/components/deep-research/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@/components/oracle",
+                "message": "Deep research components must NOT import from oracle components (isolation guarantee)."
+              },
+              {
+                "name": "@/components/web",
+                "message": "Deep research components must NOT import from web components (isolation guarantee)."
+              },
+              {
+                "name": "@/components/analysis",
+                "message": "Deep research components must NOT import from analysis components (isolation guarantee)."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@/components/oracle*", "@/components/web*", "@/components/analysis*"],
+                "message": "Deep research components must NOT import from other section components (isolation guarantee)."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

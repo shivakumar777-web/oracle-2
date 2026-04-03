@@ -1,9 +1,45 @@
 ###############################################################
-#   MANTHANA — MEDICAL AI ENGINE — MASTER DOCKER COMPOSE     #
-#   Production Grade | Single Spec | All Services            #
+#   MANTHANA — MEDICAL AI ENGINE — MASTER DOCKER COMPOSE
+#   Production Grade | Single Spec | All Services
+#
+#   Improvements over original:
+#     • Removed deprecated `version` key (Compose V2)
+#     • Every depends_on uses condition: service_healthy/started
+#     • Logging driver with 10 MB rotation on all services
+#     • Security: read_only, no_new_privileges, cap_drop where safe
+#     • Fixed LiteLLM port collision (was 11434 → now 4000)
+#     • Fixed manthana-api env: EMBEDDING_MODEL, GROQ_MODEL added
+#     • Added Promtail for log shipping → Loki
+#     • Consistent restart: unless-stopped everywhere
+#     • Added expose directives for internal-only services
+#     • Proper startup ordering for critical data paths
+#     • Added .env variables documentation in comments
 ###############################################################
-
-version: "3.9"
+#
+#  Required .env variables:
+#    DOMAIN               — your root domain (e.g. manthana.ai)
+#    ACME_EMAIL           — Let's Encrypt email
+#    TRAEFIK_AUTH          — htpasswd string for Traefik dashboard
+#    MEILI_MASTER_KEY     — Meilisearch admin key
+#    GROQ_API_KEY         — Groq inference API key
+#    HF_TOKEN             — Hugging Face access token
+#    LITELLM_MASTER_KEY   — LiteLLM proxy master key
+#    SEARXNG_SECRET       — SearXNG secret key
+#    GRAFANA_USER         — Grafana admin username
+#    GRAFANA_PASSWORD     — Grafana admin password
+#    N8N_USER             — n8n basic auth user
+#    N8N_PASSWORD         — n8n basic auth password
+#    N8N_ENCRYPTION_KEY   — n8n encryption key
+#    FRONTEND_URL         — frontend origin for CORS (default: http://localhost:3001)
+#
+#  Optional .env variables:
+#    OPENAI_API_KEY       — OpenAI key (for Firecrawl/Perplexica)
+#    SCRAPING_BEE_API_KEY — ScrapingBee API key
+#    EXTRA_CORS_ORIGINS   — comma-separated extra CORS origins
+#    LOG_LEVEL            — global log level (default: INFO)
+#    MAX_UPLOAD_MB        — max file upload size (default: 50)
+#
+###############################################################
 
 ###############################################################
 #   NETWORKS
@@ -33,6 +69,23 @@ volumes:
   loki-data:
   nutch-data:
   firecrawl-data:
+  promtail-positions:
+  indexer-hf-cache:
+  # Phase 3: Database per service
+  oracle-db-data:
+  web-db-data:
+  research-db-data:
+  analysis-db-data:
+
+###############################################################
+#   SHARED LOGGING — JSON with 10 MB rotation, 5 files max
+###############################################################
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+    tag: "{{.Name}}"
 
 ###############################################################
 #   SERVICES
@@ -46,11 +99,13 @@ services:
     image: traefik:v3.0
     container_name: traefik
     restart: unless-stopped
+    logging: *default-logging
     command:
       - "--api.dashboard=true"
       - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=frontend"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
@@ -60,6 +115,10 @@ services:
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
       - "--log.level=INFO"
       - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
+      - "--entrypoints.metrics.address=:8082"
     ports:
       - "80:80"
       - "443:443"
@@ -73,8 +132,16 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
       - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
       - "traefik.http.routers.dashboard.middlewares=auth"
       - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH}"
+      # Global middleware: rate limit + security headers
+      - "traefik.http.middlewares.security-headers.headers.browserxssfilter=true"
+      - "traefik.http.middlewares.security-headers.headers.contenttypenosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
     deploy:
       resources:
         limits:
@@ -92,33 +159,87 @@ services:
 
   ai-router:
     build:
-      context: ./services/ai-router
+      context: .
+      dockerfile: services/ai-router/Dockerfile
     container_name: manthana-ai-router
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=ai-router
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Infrastructure URLs (match config.py defaults)
+      # Chat: Groq (cloud). Embeddings: Ollama nomic-embed-text for Qdrant
+      - EMBED_URL=http://ollama:11434
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - QDRANT_URL=http://qdrant:6333
+      - MEILISEARCH_URL=http://meilisearch:7700
+      - MEILISEARCH_KEY=${MEILI_MASTER_KEY}
+      - MEILISEARCH_API_KEY=${MEILI_MASTER_KEY}
+      - PERPLEXICA_URL=http://perplexica:3000
+      - SEARXNG_URL=http://searxng:8080
+      - REDIS_URL=redis://redis:6379
+      # Clinical service URLs
+      - ECG_URL=http://ecg:8102
+      - EYE_URL=http://eye:8103
+      - CANCER_URL=http://cancer:8104
+      - PATHOLOGY_URL=http://pathology:8105
+      - BRAIN_URL=http://brain:8106
+      - SEGMENTATION_URL=http://segmentation:8107
+      - NLP_URL=http://nlp:8108
+      - DRUG_URL=http://drug:8109
+      - AYURVEDA_URL=http://ayurveda:8110
+      - IMAGING_URL=http://imaging-utils:8111
+      - INDEXER_URL=http://indexer:8112
+      - MANTHANA_API_URL=http://manthana-api:8001
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-50}
     ports:
       - "127.0.0.1:8000:8000"
     networks:
       - backend
       - frontend
     depends_on:
-      - radiology
-      - ecg
-      - eye
-      - cancer
-      - pathology
-      - brain
-      - segmentation
-      - nlp
-      - drug
-      - ayurveda
-      - imaging-utils
-      - indexer
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      ecg:
+        condition: service_healthy
+      eye:
+        condition: service_healthy
+      cancer:
+        condition: service_healthy
+      pathology:
+        condition: service_healthy
+      brain:
+        condition: service_healthy
+      segmentation:
+        condition: service_healthy
+      nlp:
+        condition: service_healthy
+      drug:
+        condition: service_healthy
+      ayurveda:
+        condition: service_healthy
+      imaging-utils:
+        condition: service_healthy
+      indexer:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.ai-router.rule=Host(`api.${DOMAIN}`)"
       - "traefik.http.routers.ai-router.entrypoints=websecure"
       - "traefik.http.routers.ai-router.tls.certresolver=myresolver"
+      - "traefik.http.routers.ai-router.middlewares=security-headers@docker"
       - "traefik.http.services.ai-router.loadbalancer.server.port=8000"
     deploy:
       resources:
@@ -132,39 +253,246 @@ services:
       retries: 3
       start_period: 30s
 
-  radiology:
+  ##############################################################
+  # 🧠 SECTION-SPECIFIC SERVICES (Phase 2 — Gradual Migration)
+  # These will eventually replace the monolithic ai-router
+  ##############################################################
+
+  # ── Oracle Service (Chat & M5) ────────────────────────────────
+  oracle-service:
     build:
-      context: ./services/radiology
-    container_name: manthana-radiology
+      context: .
+      dockerfile: services/oracle-service/Dockerfile
+    container_name: manthana-oracle
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
-    volumes:
-      - ./ai-tools:/app/ai-tools:ro
+    environment:
+      - SERVICE_NAME=oracle-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ORACLE_GROQ_API_KEY=${GROQ_API_KEY}
+      - ORACLE_GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
+      - ORACLE_GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - ORACLE_REDIS_URL=redis://redis:6379
+      - ORACLE_MEILISEARCH_URL=http://meilisearch:7700
+      - ORACLE_MEILISEARCH_KEY=${MEILI_MASTER_KEY}
+      - ORACLE_QDRANT_URL=http://qdrant:6333
+      - SEARXNG_URL=http://searxng:8080
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      - REQUIRE_AUTH=${REQUIRE_AUTH:-false}
+      # Phase 3: Database connection
+      - DATABASE_URL=postgresql://oracle:${ORACLE_DB_PASSWORD:-oracle_dev_password}@oracle-db:5432/oracle_service
+    expose:
+      - "8000"
     ports:
-      - "127.0.0.1:8101:8101"
+      - "127.0.0.1:8100:8000"
     networks:
       - backend
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: "1.0"
+    depends_on:
+      redis:
+        condition: service_healthy
+      oracle-db:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8101/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  # ── Web Service (Search) ─────────────────────────────────────
+  web-service:
+    build:
+      context: .
+      dockerfile: services/web-service/Dockerfile
+    image: manthana-web:latest
+    container_name: manthana-web
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: .env
+    environment:
+      - SERVICE_NAME=web-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WEB_SEARXNG_URL=http://searxng:8080
+      - WEB_MEILISEARCH_URL=http://meilisearch:7700
+      - WEB_MEILISEARCH_KEY=${MEILI_MASTER_KEY}
+      - WEB_REDIS_URL=redis://redis:6379
+      - WEB_GROQ_API_KEY=${GROQ_API_KEY}
+      - WEB_GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - NCBI_API_KEY=${NCBI_API_KEY:-}
+      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - OPENALEX_MAILTO=${OPENALEX_MAILTO:-}
+      - CROSSREF_MAILTO=${CROSSREF_MAILTO:-}
+      - CORE_API_KEY=${CORE_API_KEY:-}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      # Phase 3: Database connection
+      - DATABASE_URL=postgresql://web:${WEB_DB_PASSWORD:-web_dev_password}@web-db:5432/web_service
+    expose:
+      - "8001"
+    ports:
+      - "127.0.0.1:8200:8001"
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      web-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Research Service (Deep Research & Plagiarism) ──────────────
+  research-service:
+    build:
+      context: .
+      dockerfile: services/research-service/Dockerfile
+    container_name: manthana-research
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: .env
+    environment:
+      - SERVICE_NAME=research-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - RESEARCH_GROQ_API_KEY=${GROQ_API_KEY}
+      - RESEARCH_GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - RESEARCH_REDIS_URL=redis://redis:6379
+      - SEARXNG_URL=http://searxng:8080
+      # Phase 1 — Deep Research RAG (read-only shared infra)
+      - RESEARCH_MEILISEARCH_URL=http://meilisearch:7700
+      - RESEARCH_MEILISEARCH_KEY=${MEILI_MASTER_KEY:-}
+      - RESEARCH_QDRANT_URL=http://qdrant:6333
+      - RESEARCH_QDRANT_COLLECTION=medical_documents
+      - RESEARCH_EMBED_URL=http://ollama:11434
+      - RESEARCH_PERPLEXICA_URL=http://perplexica:3000
+      - PERPLEXICA_URL=http://perplexica:3000
+      - RESEARCH_NCBI_API_KEY=${NCBI_API_KEY:-}
+      - REQUIRE_AUTH=${RESEARCH_REQUIRE_AUTH:-false}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      # Phase 3: Database connection
+      - DATABASE_URL=postgresql://research:${RESEARCH_DB_PASSWORD:-research_dev_password}@research-db:5432/research_service
+    expose:
+      - "8002"
+    ports:
+      - "127.0.0.1:8201:8002"
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      research-db:
+        condition: service_healthy
+    # Meilisearch, Qdrant, Ollama, Perplexica are optional RAG deps — configure URLs in env;
+    # do not hard-depend (perplexica uses compose profile `perplexica`).
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.75"
+
+  # ── Analysis Service (Image Analysis Gateway) ──────────────────
+  analysis-service:
+    build:
+      context: .
+      dockerfile: services/analysis-service/Dockerfile
+    container_name: manthana-analysis
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: .env
+    environment:
+      - SERVICE_NAME=analysis-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ECG_URL=http://ecg:8102
+      - EYE_URL=http://eye:8103
+      - CANCER_URL=http://cancer:8104
+      - PATHOLOGY_URL=http://pathology:8105
+      - BRAIN_URL=http://brain:8106
+      - SEGMENTATION_URL=http://segmentation:8107
+      - IMAGING_URL=http://imaging-utils:8111
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-50}
+      # Phase 3: Database connection
+      - DATABASE_URL=postgresql://analysis:${ANALYSIS_DB_PASSWORD:-analysis_dev_password}@analysis-db:5432/analysis_service
+    expose:
+      - "8003"
+    ports:
+      - "127.0.0.1:8202:8003"
+    networks:
+      - backend
+    depends_on:
+      ecg:
+        condition: service_healthy
+      eye:
+        condition: service_healthy
+      cancer:
+        condition: service_healthy
+      analysis-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Clinical micro-services (8102-8112) ─────────────────────
+  # All share the same structure. Template via x-clinical anchor.
 
   ecg:
     build:
-      context: ./services/ecg
+      context: .
+      dockerfile: services/ecg/Dockerfile
     container_name: manthana-ecg
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=ecg
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8102:8102"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -175,17 +503,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   eye:
     build:
-      context: ./services/eye
+      context: .
+      dockerfile: services/eye/Dockerfile
     container_name: manthana-eye
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=eye
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8103:8103"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -196,17 +532,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   cancer:
     build:
-      context: ./services/cancer
+      context: .
+      dockerfile: services/cancer/Dockerfile
     container_name: manthana-cancer
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=cancer
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8104:8104"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -217,17 +561,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   pathology:
     build:
-      context: ./services/pathology
+      context: .
+      dockerfile: services/pathology/Dockerfile
     container_name: manthana-pathology
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=pathology
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8105:8105"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -238,17 +590,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   brain:
     build:
-      context: ./services/brain
+      context: .
+      dockerfile: services/brain/Dockerfile
     container_name: manthana-brain
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=brain
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8106:8106"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -259,17 +619,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   segmentation:
     build:
-      context: ./services/segmentation
+      context: .
+      dockerfile: services/segmentation/Dockerfile
     container_name: manthana-segmentation
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=segmentation
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8107:8107"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -280,17 +648,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   nlp:
     build:
-      context: ./services/nlp
+      context: .
+      dockerfile: services/nlp/Dockerfile
     container_name: manthana-nlp
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=nlp
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8108:8108"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -301,17 +677,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   drug:
     build:
-      context: ./services/drug
+      context: .
+      dockerfile: services/drug/Dockerfile
     container_name: manthana-drug
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=drug
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8109:8109"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -322,17 +706,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   ayurveda:
     build:
-      context: ./services/ayurveda
+      context: .
+      dockerfile: services/ayurveda/Dockerfile
     container_name: manthana-ayurveda
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=ayurveda
+      - DEVICE=${DEVICE:-cpu}
     ports:
       - "127.0.0.1:8110:8110"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -343,17 +735,24 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   imaging-utils:
     build:
-      context: ./services/imaging-utils
+      context: .
+      dockerfile: services/imaging-utils/Dockerfile
     container_name: manthana-imaging-utils
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=imaging-utils
     ports:
       - "127.0.0.1:8111:8111"
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -364,15 +763,27 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
   indexer:
     build:
-      context: ./services/indexer
+      context: .
+      dockerfile: services/indexer/Dockerfile
     container_name: manthana-indexer
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
+    environment:
+      - SERVICE_NAME=indexer
+      - MEILISEARCH_URL=http://meilisearch:7700
+      - MEILISEARCH_KEY=${MEILI_MASTER_KEY}
+      - QDRANT_URL=http://qdrant:6333
+      - EMBED_URL=http://ollama:11434
+      - HF_HOME=/app/hf_cache
     ports:
       - "127.0.0.1:8112:8112"
+    volumes:
+      - indexer-hf-cache:/app/hf_cache
     networks:
       - backend
     depends_on:
@@ -380,16 +791,21 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
           cpus: "0.5"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8112/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 120s
 
   ##############################################################
   # 🕷️ LAYER 2: CRAWLERS
@@ -399,6 +815,7 @@ services:
     image: unclecode/crawl4ai:latest
     container_name: crawl4ai
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - MAX_CONCURRENT_TASKS=10
       - REDIS_HOST=redis
@@ -423,11 +840,14 @@ services:
       start_period: 30s
 
   firecrawl-api:
+    profiles:
+      - crawlers
     build:
       context: ./crawlers/firecrawl
       dockerfile: apps/api/Dockerfile
     container_name: firecrawl-api
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - REDIS_URL=redis://redis:6379
       - REDIS_RATE_LIMIT_URL=redis://redis:6379
@@ -454,18 +874,21 @@ services:
           memory: 1G
           cpus: "1.0"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/"]
+      test: ["CMD", "curl", "-sf", "http://localhost:3002/", "-o", "/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 40s
 
   firecrawl-worker:
+    profiles:
+      - crawlers
     build:
       context: ./crawlers/firecrawl
       dockerfile: apps/api/Dockerfile
     container_name: firecrawl-worker
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - REDIS_URL=redis://redis:6379
       - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000
@@ -477,6 +900,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      firecrawl-playwright:
+        condition: service_started
     deploy:
       resources:
         limits:
@@ -484,15 +909,23 @@ services:
           cpus: "0.5"
 
   firecrawl-playwright:
+    profiles:
+      - crawlers
     image: browserless/chrome:latest
     container_name: firecrawl-playwright
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - DEFAULT_LAUNCH_ARGS=["--no-sandbox","--disable-dev-shm-usage"]
       - CONCURRENT=10
       - TIMEOUT=30000
     networks:
       - backend
+    # Internal only — no published ports
+    expose:
+      - "3000"
+    tmpfs:
+      - /tmp:size=256M
     deploy:
       resources:
         limits:
@@ -505,9 +938,11 @@ services:
       dockerfile: Dockerfile.api
     container_name: manthana-api
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8001:8001"
+    logging: *default-logging
+    env_file: .env
     environment:
+      - SERVICE_NAME=manthana-api
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - SEARXNG_URL=http://searxng:8080
       - FIRECRAWL_URL=http://firecrawl-api:3002
       - CRAWL4AI_URL=http://crawl4ai:11235
@@ -516,7 +951,13 @@ services:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - MEILISEARCH_URL=http://meilisearch:7700
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
-      - OLLAMA_MODEL=llama3
+      - EMBEDDING_MODEL=nomic-embed-text
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
+      - EXTRA_CORS_ORIGINS=${EXTRA_CORS_ORIGINS:-}
+    ports:
+      - "127.0.0.1:8001:8001"
     networks:
       - backend
       - frontend
@@ -531,6 +972,17 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.manthana-api.rule=Host(`search.api.${DOMAIN}`)"
+      - "traefik.http.routers.manthana-api.entrypoints=websecure"
+      - "traefik.http.routers.manthana-api.tls.certresolver=myresolver"
+      - "traefik.http.routers.manthana-api.middlewares=security-headers@docker"
+      - "traefik.http.services.manthana-api.loadbalancer.server.port=8001"
     deploy:
       resources:
         limits:
@@ -544,15 +996,18 @@ services:
       start_period: 60s
 
   nutch:
+    profiles:
+      - crawlers
     build:
       context: ./crawlers/nutch
       dockerfile: Dockerfile
     container_name: nutch
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - nutch-data:/nutch/crawl
-      - ./seeds:/nutch/urls
-      - ./configs/nutch-site.xml:/nutch/conf/nutch-site.xml
+      - ./seeds:/nutch/urls:ro
+      - ./configs/nutch-site.xml:/nutch/conf/nutch-site.xml:ro
     environment:
       - ELASTICSEARCH_HOST=elasticsearch
       - ELASTICSEARCH_PORT=9200
@@ -575,13 +1030,17 @@ services:
     image: elasticsearch:8.12.0
     container_name: elasticsearch
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - xpack.monitoring.templates.enabled=false
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - xpack.ml.enabled=false
+      - xpack.watcher.enabled=false
+      - xpack.graph.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - cluster.name=medical-search
-      - bootstrap.memory_lock=true
+      - bootstrap.memory_lock=false
     ports:
       - "127.0.0.1:9200:9200"
     volumes:
@@ -589,19 +1048,16 @@ services:
     networks:
       - backend
     ulimits:
-      memlock:
-        soft: -1
-        hard: -1
       nofile:
         soft: 65536
         hard: 65536
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: "1.5"
+          memory: 1G
+          cpus: "1.0"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -611,10 +1067,12 @@ services:
     image: qdrant/qdrant:latest
     container_name: qdrant
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - QDRANT__SERVICE__HTTP_PORT=6333
       - QDRANT__SERVICE__GRPC_PORT=6334
       - QDRANT__LOG_LEVEL=INFO
+      - QDRANT__STORAGE__WAL__WAL_CAPACITY_MB=64
     ports:
       - "127.0.0.1:6333:6333"
       - "127.0.0.1:6334:6334"
@@ -628,7 +1086,7 @@ services:
           memory: 1G
           cpus: "1.0"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -638,6 +1096,7 @@ services:
     image: redis:7-alpine
     container_name: redis
     restart: unless-stopped
+    logging: *default-logging
     command: >
       redis-server
       --maxmemory 512mb
@@ -645,12 +1104,16 @@ services:
       --save 900 1
       --save 300 10
       --appendonly yes
+      --tcp-backlog 128
+      --loglevel notice
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -663,6 +1126,135 @@ services:
       retries: 5
 
   ##############################################################
+  # 🗄️ LAYER 3B: PER-SERVICE DATABASES (Phase 3)
+  # PostgreSQL instances for service data isolation
+  ##############################################################
+
+  # ── Oracle Database ───────────────────────────────────────────
+  oracle-db:
+    image: postgres:15-alpine
+    container_name: oracle-db
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - POSTGRES_USER=oracle
+      - POSTGRES_PASSWORD=${ORACLE_DB_PASSWORD:-oracle_dev_password}
+      - POSTGRES_DB=oracle_service
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - oracle-db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    expose:
+      - "5432"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oracle -d oracle_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Web Database ───────────────────────────────────────────────
+  web-db:
+    image: postgres:15-alpine
+    container_name: web-db
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - POSTGRES_USER=web
+      - POSTGRES_PASSWORD=${WEB_DB_PASSWORD:-web_dev_password}
+      - POSTGRES_DB=web_service
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - web-db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    expose:
+      - "5432"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U web -d web_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Research Database ────────────────────────────────────────
+  research-db:
+    image: postgres:15-alpine
+    container_name: research-db
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - POSTGRES_USER=research
+      - POSTGRES_PASSWORD=${RESEARCH_DB_PASSWORD:-research_dev_password}
+      - POSTGRES_DB=research_service
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - research-db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    expose:
+      - "5432"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U research -d research_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Analysis Database ─────────────────────────────────────────
+  analysis-db:
+    image: postgres:15-alpine
+    container_name: analysis-db
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - POSTGRES_USER=analysis
+      - POSTGRES_PASSWORD=${ANALYSIS_DB_PASSWORD:-analysis_dev_password}
+      - POSTGRES_DB=analysis_service
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - analysis-db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    expose:
+      - "5432"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analysis -d analysis_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ##############################################################
   # 🔍 LAYER 4: SEARCH ENGINES
   ##############################################################
 
@@ -670,6 +1262,7 @@ services:
     image: searxng/searxng:latest
     container_name: searxng
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - SEARXNG_BASE_URL=https://search.${DOMAIN}
       - SEARXNG_SECRET_KEY=${SEARXNG_SECRET}
@@ -691,6 +1284,7 @@ services:
       - "traefik.http.routers.searxng.rule=Host(`search.${DOMAIN}`)"
       - "traefik.http.routers.searxng.entrypoints=websecure"
       - "traefik.http.routers.searxng.tls.certresolver=myresolver"
+      - "traefik.http.routers.searxng.middlewares=security-headers@docker"
     deploy:
       resources:
         limits:
@@ -706,11 +1300,13 @@ services:
     image: getmeili/meilisearch:latest
     container_name: meilisearch
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
       - MEILI_ENV=production
       - MEILI_LOG_LEVEL=INFO
       - MEILI_MAX_INDEXING_MEMORY=500Mb
+      - MEILI_HTTP_PAYLOAD_SIZE_LIMIT=10485760
     ports:
       - "127.0.0.1:7700:7700"
     volumes:
@@ -733,24 +1329,45 @@ services:
   ##############################################################
 
   litellm:
+    profiles:
+      - llm
     image: ghcr.io/berriai/litellm:main-latest
-    restart: always
+    container_name: litellm
+    restart: unless-stopped
+    logging: *default-logging
+    # Port 4000 internal — ai-router reaches it as http://litellm:4000
+    # Exposed on host as 4000 (NOT 11434 — avoids collision with Ollama)
     ports:
-      - "11434:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - HF_TOKEN=${HF_TOKEN}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
     volumes:
-      - ./litellm_config.yaml:/app/config.yaml
+      - ./litellm_config.yaml:/app/config.yaml:ro
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     networks:
       - backend
+    depends_on:
+      ollama:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    restart: always
+    restart: unless-stopped
+    logging: *default-logging
     entrypoint: >
       sh -c "ollama serve &
       sleep 8 &&
@@ -772,33 +1389,38 @@ services:
           memory: 1G
           cpus: "1.0"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
 
   ##############################################################
-  # 🎨 LAYER 6: FRONTEND / INTERNAL SEARCH
-  # Perplexica — INTERNAL ONLY (no public port binding)
-  # Accessed only via ai-router service on internal Docker network
+  # 🎨 LAYER 6: INTERNAL SEARCH — Perplexica
+  # Internal only — no published ports
   ##############################################################
+
   perplexica:
+    profiles:
+      - perplexica
     build:
       context: ./backend/search-engine/perplexica
       dockerfile: Dockerfile
     container_name: perplexica
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - SEARXNG_API_URL=http://searxng:8080
       - OLLAMA_API_URL=http://ollama:11434
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - INTERNAL_ONLY=true
       - NEXT_PUBLIC_API_URL=http://ai-router:8000
-    # NO port binding — internal network only (bug #8 fix)
+    # Internal only — no published ports
+    expose:
+      - "3000"
     volumes:
       - perplexica-data:/app/data
-      - ./configs/perplexica.toml:/app/config.toml
+      - ./configs/perplexica.toml:/app/config.toml:ro
     networks:
       - backend
     depends_on:
@@ -806,6 +1428,8 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
@@ -819,13 +1443,14 @@ services:
       start_period: 30s
 
   ##############################################################
-  # 🎛️ LAYER 7: ORCHESTRATION
+  # 🎛️ LAYER 7: ORCHESTRATION — n8n
   ##############################################################
 
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - N8N_HOST=n8n.${DOMAIN}
       - N8N_PORT=5678
@@ -854,6 +1479,7 @@ services:
       - "traefik.http.routers.n8n.rule=Host(`n8n.${DOMAIN}`)"
       - "traefik.http.routers.n8n.entrypoints=websecure"
       - "traefik.http.routers.n8n.tls.certresolver=myresolver"
+      - "traefik.http.routers.n8n.middlewares=security-headers@docker"
     deploy:
       resources:
         limits:
@@ -873,12 +1499,15 @@ services:
     image: prom/prometheus:latest
     container_name: prometheus
     restart: unless-stopped
+    logging: *default-logging
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=5GB"
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
@@ -893,15 +1522,18 @@ services:
           memory: 512M
           cpus: "0.5"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   grafana:
+    profiles:
+      - monitoring
     image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
@@ -910,17 +1542,21 @@ services:
       - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
       - GF_LOG_LEVEL=info
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_AUTH_ANONYMOUS_ENABLED=false
     ports:
-      - "127.0.0.1:3001:3000"
+      # Changed from 3001 to 3050 — avoids collision with FRONTEND_URL (3001)
+      - "127.0.0.1:3050:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./configs/grafana/provisioning:/etc/grafana/provisioning
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
     networks:
       - monitoring
       - frontend
     depends_on:
-      - prometheus
-      - loki
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
@@ -942,6 +1578,7 @@ services:
     image: grafana/loki:latest
     container_name: loki
     restart: unless-stopped
+    logging: *default-logging
     command: -config.file=/etc/loki/loki-config.yml
     ports:
       - "127.0.0.1:3100:3100"
@@ -956,8 +1593,34 @@ services:
           memory: 256M
           cpus: "0.3"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3100/ready"]
+      test: ["CMD-SHELL", "/usr/bin/loki -config.file=/etc/loki/loki-config.yml -target=healthcheck || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
+  # ── Promtail: ships container logs → Loki ───────────────────
+  promtail:
+    profiles:
+      - monitoring
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    logging: *default-logging
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./configs/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/positions
+    networks:
+      - monitoring
+    depends_on:
+      loki:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.2"

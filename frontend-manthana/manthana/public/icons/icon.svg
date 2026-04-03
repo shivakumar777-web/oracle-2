@@ -1,0 +1,190 @@
+<svg id="main-icon" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg"
+     role="img" aria-label="MANTHANA — five spiral arms churning to the golden Amrita">
+<defs>
+  <!-- Five arm gradients: teal-aqua tip → rich gold → luminous gold core -->
+  <linearGradient id="ag1" x1="130" y1="35" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag2" x1="220.4" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag3" x1="185.8" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag4" x1="74.2" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+  <linearGradient id="ag5" x1="39.6" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+    <stop offset="0%"   stop-color="#3DDBC8" stop-opacity=".96"/>
+    <stop offset="48%"  stop-color="#C8922A"/>
+    <stop offset="100%" stop-color="#F0D070"/>
+  </linearGradient>
+
+  <!-- White-hot core → molten gold → void -->
+  <radialGradient id="crg" cx="50%" cy="50%" r="50%">
+    <stop offset="0%"   stop-color="#FFFFFF"/>
+    <stop offset="12%"  stop-color="#FFFBE0"/>
+    <stop offset="33%"  stop-color="#F8C94A"/>
+    <stop offset="62%"  stop-color="#C0880A" stop-opacity=".66"/>
+    <stop offset="100%" stop-color="#7A5000" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="coh" cx="50%" cy="50%" r="50%">
+    <stop offset="0%"  stop-color="#D4A847" stop-opacity=".24"/>
+    <stop offset="100%" stop-color="#D4A847" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="amb" cx="50%" cy="50%" r="50%">
+    <stop offset="0%"  stop-color="#00C4B0" stop-opacity=".032"/>
+    <stop offset="55%" stop-color="#C8922A" stop-opacity=".024"/>
+    <stop offset="100%" stop-color="transparent"/>
+  </radialGradient>
+
+  <!-- Arm glow -->
+  <filter id="fHalo" x="-75%" y="-75%" width="250%" height="250%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="5.5" result="b"/>
+    <feColorMatrix in="b" type="matrix"
+      values=".08 .35 .5 0 .008  .42 .88 .68 0 .06  .28 .76 .88 0 .036  0 0 0 .42 0" result="c"/>
+    <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Core bloom -->
+  <filter id="fCore" x="-300%" y="-300%" width="700%" height="700%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b1"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="5"  result="b2"/>
+    <feMerge><feMergeNode in="b1"/><feMergeNode in="b2"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Tip bloom -->
+  <filter id="fTip" x="-500%" y="-500%" width="1100%" height="1100%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b"/>
+    <feColorMatrix in="b" type="matrix"
+      values="0 .18 .55 0 0  .35 .92 .68 0 .07  .28 .88 .88 0 .055  0 0 0 .68 0" result="c"/>
+    <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Ring soft -->
+  <filter id="fRing"><feGaussianBlur in="SourceGraphic" stdDeviation=".7"/></filter>
+</defs>
+
+<!-- Dark background -->
+<rect width="260" height="260" fill="#020610"/>
+
+<!-- Ambient light field -->
+<circle cx="130" cy="130" r="128" fill="url(#amb)"/>
+
+<!-- Outer structural ring -->
+<circle cx="130" cy="130" r="112.5" fill="none"
+        stroke="rgba(200,146,42,.12)" stroke-width=".55" filter="url(#fRing)"/>
+<!-- Outer orbit dash -->
+<circle cx="130" cy="130" r="101" fill="none"
+        stroke="rgba(0,196,176,.16)" stroke-width=".72" stroke-dasharray="5 12"/>
+
+<!-- Mid boundary ring -->
+<circle cx="130" cy="130" r="59" fill="none"
+        stroke="rgba(212,168,71,.07)" stroke-width=".5" stroke-dasharray="2 7.5"/>
+
+<!-- Ghost spokes -->
+<g opacity=".038" stroke="#FFF" stroke-width=".4">
+  <line x1="130" y1="35"     x2="130"   y2="130"/>
+  <line x1="220.4" y1="100.6" x2="130"  y2="130"/>
+  <line x1="185.8" y1="206.9" x2="130"  y2="130"/>
+  <line x1="74.2"  y1="206.9" x2="130"  y2="130"/>
+  <line x1="39.6"  y1="100.6" x2="130"  y2="130"/>
+</g>
+
+<!-- Secondary echo arms -->
+<g opacity=".14">
+  <path d="M130,35 C184,78 170,127 130,130"    fill="none" stroke="url(#ag1)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M220.4,100.6 C184,170 140,165 130,130" fill="none" stroke="url(#ag2)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M185.8,206.9 C113,200 100,151 130,130" fill="none" stroke="url(#ag3)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M74.2,206.9 C59,133 100,107 130,130"   fill="none" stroke="url(#ag4)" stroke-width=".45" stroke-linecap="round"/>
+  <path d="M39.6,100.6 C108,64 143,94 130,130"    fill="none" stroke="url(#ag5)" stroke-width=".45" stroke-linecap="round"/>
+</g>
+
+<!-- ARM HALOS -->
+<g filter="url(#fHalo)" opacity=".25">
+  <path d="M130,35 C173.84,86.16 158,130 130,130"     fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130"   fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130"   fill="none" stroke="#3DDBC8" stroke-width="8" stroke-linecap="round"/>
+</g>
+
+<!-- MAIN SPIRAL ARMS -->
+<g filter="url(#fHalo)">
+  <path d="M130,35 C173.84,86.16 158,130 130,130"     fill="none" stroke="url(#ag1)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="url(#ag2)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="url(#ag3)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130"   fill="none" stroke="url(#ag4)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130"   fill="none" stroke="url(#ag5)" stroke-width="2.2" stroke-linecap="round"/>
+</g>
+
+<!-- TIP NODES -->
+<g filter="url(#fTip)">
+  <circle cx="130"   cy="35"    r="3.6" fill="#7FFFD4"/>
+  <circle cx="220.4" cy="100.6" r="3.6" fill="#7FFFD4"/>
+  <circle cx="185.8" cy="206.9" r="3.6" fill="#7FFFD4"/>
+  <circle cx="74.2"  cy="206.9" r="3.6" fill="#7FFFD4"/>
+  <circle cx="39.6"  cy="100.6" r="3.6" fill="#7FFFD4"/>
+</g>
+
+<!-- Outer pentagon -->
+<polygon points="130,100 158.53,120.73 147.63,154.27 112.37,154.27 101.47,120.73"
+         fill="none" stroke="rgba(212,168,71,.22)" stroke-width=".68"/>
+
+<!-- 8 Lotus petals -->
+<g opacity=".09" fill="none" stroke="rgba(212,168,71,1)" stroke-width=".6">
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(0,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(45,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(90,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(135,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(180,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(225,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(270,130,130)"/>
+  <path d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform="rotate(315,130,130)"/>
+</g>
+
+<!-- Star of David / hexagram -->
+<g opacity=".14" fill="none" stroke="rgba(0,196,176,1)" stroke-width=".64">
+  <polygon points="130,106 151.65,143.5 108.35,143.5"/>
+  <polygon points="130,154 151.65,116.5 108.35,116.5"/>
+</g>
+
+<!-- Inner dashed ring -->
+<circle cx="130" cy="130" r="34.5" fill="none"
+        stroke="rgba(212,168,71,.18)" stroke-width=".66" stroke-dasharray="3 8.5"/>
+
+<!-- Pearl ring: 8 pearls at r=50 -->
+<g opacity=".50">
+  <circle cx="130"    cy="80"     r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="165.36" cy="94.64"  r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="180"    cy="130"    r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="165.36" cy="165.36" r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="130"    cy="180"    r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="94.64"  cy="165.36" r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="80"     cy="130"    r="1.6" fill="rgba(212,168,71,.95)"/>
+  <circle cx="94.64"  cy="94.64"  r="1.6" fill="rgba(212,168,71,.95)"/>
+</g>
+
+<!-- Pearl ring: 5 pearls at r=17 -->
+<g opacity=".68">
+  <circle cx="130"    cy="113"    r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="146.18" cy="124.75" r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="139.99" cy="143.76" r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="120.01" cy="143.76" r="1.3" fill="rgba(212,168,71,1)"/>
+  <circle cx="113.82" cy="124.75" r="1.3" fill="rgba(212,168,71,1)"/>
+</g>
+
+<!-- Core breathing halos -->
+<circle cx="130" cy="130" r="30" fill="url(#coh)"/>
+<circle cx="130" cy="130" r="18" fill="url(#crg)" opacity=".32"/>
+<!-- Core bright with bloom -->
+<circle cx="130" cy="130" r="12" fill="url(#crg)" filter="url(#fCore)"/>
+<!-- The Amrita -->
+<circle cx="130" cy="130" r="4.4" fill="#FFF8D8"/>
+<circle cx="130" cy="130" r="2.1" fill="#FFFFFF"/>
+</svg>

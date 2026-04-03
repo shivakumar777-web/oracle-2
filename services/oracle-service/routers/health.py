@@ -1,0 +1,107 @@
+"""
+health.py — Oracle Service Health Router
+=========================================
+Health check endpoints for Oracle service with circuit breaker status.
+"""
+
+from __future__ import annotations
+
+import sys
+from typing import Any, Dict
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+
+# Import circuit breakers
+PROJECT_ROOT = "/opt/manthana"
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+from services.shared.circuit_breaker import oracle_groq_circuit, oracle_ollama_circuit, get_all_circuit_stats
+
+
+def create_health_router() -> APIRouter:
+    """Create health check router."""
+    router = APIRouter(tags=["health"])
+
+    @router.get("/health")
+    async def health_check(request: Request):
+        """Oracle service health check with circuit breaker status."""
+        settings = request.app.state.settings
+
+        # Check Groq availability (without making actual API call)
+        groq_configured = bool(settings.ORACLE_GROQ_API_KEY)
+
+        # Check Redis if configured
+        redis_status = "not_configured"
+        if settings.ORACLE_REDIS_URL:
+            redis = getattr(request.app.state, "redis", None)
+            if redis:
+                try:
+                    await redis.ping()
+                    redis_status = "connected"
+                except Exception:
+                    redis_status = "disconnected"
+            else:
+                redis_status = "disconnected"
+
+        # Circuit breaker status
+        circuit_stats = {
+            "oracle_groq": oracle_groq_circuit.get_stats(),
+            "oracle_ollama": oracle_ollama_circuit.get_stats(),
+        }
+
+        # Determine overall status
+        overall_status = "healthy"
+        if not groq_configured:
+            overall_status = "degraded"
+        if oracle_groq_circuit.state.value == "open" and oracle_ollama_circuit.state.value == "open":
+            overall_status = "unhealthy"
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "service": "oracle",
+                "version": settings.SERVICE_VERSION,
+                "data": {
+                    "status": overall_status,
+                    "llm": {
+                        "primary": "groq" if groq_configured else "not_configured",
+                        "fallback": settings.ORACLE_FALLBACK_MODEL if settings.ORACLE_FALLBACK_ENABLED else "disabled",
+                        "configured": groq_configured,
+                        "circuits": {
+                            "groq": oracle_groq_circuit.state.value,
+                            "ollama": oracle_ollama_circuit.state.value,
+                        },
+                    },
+                    "cache": {
+                        "type": "redis" if settings.ORACLE_REDIS_URL else "none",
+                        "status": redis_status,
+                    },
+                    "features": {
+                        "m5": settings.ORACLE_ENABLE_M5,
+                        "trials": settings.ORACLE_ENABLE_TRIALS,
+                        "pubmed": settings.ORACLE_ENABLE_PUBMED,
+                        "domain_intelligence": settings.ORACLE_ENABLE_DOMAIN_INTELLIGENCE,
+                    },
+                    "circuits": circuit_stats,
+                },
+                "error": None,
+            },
+        )
+
+    @router.get("/health/circuits")
+    async def circuit_status(request: Request):
+        """Circuit breaker detailed status."""
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "service": "oracle",
+                "data": {
+                    "circuits": get_all_circuit_stats(),
+                },
+            },
+        )
+
+    return router

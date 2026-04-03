@@ -9,26 +9,28 @@ RUN apt-get update && apt-get install -y \
 # Working dir
 WORKDIR /app
 
-# Install Python deps first (cache layer)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+ENV PIP_DEFAULT_TIMEOUT=300
+
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
 
 # Copy source files
 COPY orchestrator.py .
 COPY api.py .
+COPY services/shared/ ./services/shared/
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s \
   --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:8001/health || exit 1
 
 # Expose API port
-EXPOSE 8000
+EXPOSE 8001
 
 # Start command
 CMD ["uvicorn", "api:app", \
      "--host", "0.0.0.0", \
-     "--port", "8000", \
+     "--port", "8001", \
      "--workers", "2", \
      "--log-level", "info"]
 

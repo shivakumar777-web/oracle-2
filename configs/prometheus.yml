@@ -14,7 +14,7 @@ rule_files: []
 scrape_configs:
 
   ###############################################################
-  # 🤖 AI MICROSERVICES — all 12 services
+  # 🤖 AI MICROSERVICES — clinical stack (no standalone radiology ML)
   ###############################################################
 
   - job_name: "manthana-ai-router"
@@ -24,14 +24,6 @@ scrape_configs:
           service: "ai-router"
     metrics_path: /metrics
     scrape_interval: 15s
-
-  - job_name: "manthana-radiology"
-    static_configs:
-      - targets: ["radiology:8101"]
-        labels:
-          service: "radiology"
-    metrics_path: /metrics
-    scrape_interval: 30s
 
   - job_name: "manthana-ecg"
     static_configs:

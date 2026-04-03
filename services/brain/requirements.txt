@@ -6,5 +6,7 @@ nilearn==0.10.4
 numpy>=1.24.0
 slowapi>=0.1.8
 pydantic>=2.0.0
+pydantic-settings>=2.0.0
 python-multipart>=0.0.9
+Pillow>=10.0.0
 

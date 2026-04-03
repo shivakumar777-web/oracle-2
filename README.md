@@ -11,7 +11,6 @@ Manthana is a vertical medical domain intelligence platform composed of multiple
 
 ### Backend Services
 - AI Router     → `services/ai-router/`      → port 8000
-- Radiology     → `services/radiology/`      → port 8101
 - ECG           → `services/ecg/`            → port 8102
 - Eye           → `services/eye/`            → port 8103
 - Cancer        → `services/cancer/`         → port 8104
@@ -44,6 +43,7 @@ All services share common utilities in `services/shared` (config, models, helper
 ### Prerequisites
 
 - Docker and Docker Compose
+- For production: see **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** — especially `MEILI_MASTER_KEY`
 - Python 3.10 (if running services outside Docker)
 - Ollama installed with the required models (e.g. `meditron`, `llama3.2`)
 
@@ -60,9 +60,10 @@ make health
 Once running:
 
 - Router health: `http://localhost:8000/health`
+- Versioned API: `http://localhost:8000/v1` (e.g. `/v1/search`, `/v1/query`)
 - Router docs: `http://localhost:8000/docs`
 - Individual service docs (examples):
-  - Radiology: `http://localhost:8101/docs`
+  - ECG: `http://localhost:8102/docs`
   - NLP: `http://localhost:8108/docs`
   - Ayurveda: `http://localhost:8110/docs`
 
@@ -79,10 +80,10 @@ Each service directory contains:
 You can run a service locally with:
 
 ```bash
-cd services/radiology
+cd services/ecg
 cp .env.example .env
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8101
+uvicorn main:app --reload --port 8102
 ```
 
 ### Testing
@@ -90,8 +91,18 @@ uvicorn main:app --reload --port 8101
 Tests are placed under `tests/` and can be executed with:
 
 ```bash
-pytest tests
+# Full suite (requires optional deps for drug/ecg/eye)
+PYTHONPATH=. pytest tests
+
+# Critical path tests only (no ML deps)
+make test-fast
+# or: PYTHONPATH=. pytest tests -m "not integration" -v --cov=...
+
+# Exclude integration tests (rdkit, neurokit2, pydicom)
+PYTHONPATH=. pytest tests -m "not integration"
 ```
+
+Coverage target: 55%+ on api, orchestrator, plagiarism_service, services/shared, services/ai-router.
 
 ### Disclaimer
 

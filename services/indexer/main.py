@@ -45,7 +45,7 @@ class Document(BaseModel):
 
 
 class BatchIndexRequest(BaseModel):
-    documents: List[Document] = Field(..., max_items=100)
+    documents: List[Document] = Field(..., max_length=100)
 
 
 class IndexResponse(BaseModel):
@@ -152,6 +152,8 @@ def create_app(settings: Settings) -> FastAPI:
         data = {
             "service": "indexer",
             "embedding_model": "pritamdeka/S-PubMedBert-MS-MARCO",
+            "model_type": "ml_validated",
+            "validated": True,
         }
         payload = format_response(
             status="success",
@@ -159,7 +161,6 @@ def create_app(settings: Settings) -> FastAPI:
             data=data,
             error=None,
             request_id=request_id,
-            error=None,
         )
         return JSONResponse(content=payload)
 

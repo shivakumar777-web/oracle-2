@@ -1,0 +1,42 @@
+# Research Service Dependencies
+# ==============================
+
+# FastAPI & Server
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+
+# Pydantic & Settings
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+
+# Rate Limiting
+slowapi>=0.1.9
+
+# LLM
+groq>=0.9.0
+openai>=1.40.0
+
+# Auth (Better Auth JWKS)
+PyJWT>=2.8.0
+cryptography>=42.0.0
+
+# HTTP Client
+httpx>=0.27.0
+
+# Plagiarism / Embeddings
+sentence-transformers>=2.7.0
+scikit-learn>=1.5.0
+numpy>=1.26.0
+
+# Optional: Redis
+redis>=5.0.0
+
+# Optional: Async
+anyio>=4.4.0
+
+# Phase 3 — thread persistence (PostgreSQL)
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.29.0
+
+# Production: Database migrations
+alembic>=1.13.0

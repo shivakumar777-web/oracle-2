@@ -1,0 +1,11 @@
+# Manthana API (api.py + orchestrator) — minimal deps, no ML
+# Excludes sentence-transformers/torch (~915MB) to avoid build timeouts
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+requests>=2.31.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+httpx>=0.24.0
+reportlab>=4.2.0
+PyJWT[crypto]>=2.8.0
+python-dotenv>=0.21.0

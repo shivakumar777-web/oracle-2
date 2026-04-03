@@ -28,6 +28,17 @@ from services.shared.config import Settings, get_settings
 from services.shared.models import BaseResponse, ErrorDetail, HealthResponse
 from services.shared.utils import DISCLAIMER, format_response, generate_request_id, json_log
 
+# Optional Redis for SNOMED caching
+try:
+    import redis.asyncio as aioredis  # type: ignore[import]
+
+    _REDIS_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    aioredis = None  # type: ignore[assignment]
+    _REDIS_AVAILABLE = False
+
+_redis_client: Optional["aioredis.Redis"] = None  # type: ignore[name-defined]
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BIOMEDBERT_PATH = os.path.abspath(os.path.join(BASE_DIR, "../../ai-tools/biomedbert"))
@@ -43,6 +54,26 @@ logger = logging.getLogger("manthana-nlp")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
+
+async def _get_redis(settings: Settings):
+    """Lazy-create a Redis client for SNOMED caching."""
+    global _redis_client
+    if not _REDIS_AVAILABLE or aioredis is None:
+        return None
+    if _redis_client is None:
+        try:
+            _redis_client = aioredis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True,
+            )
+            await _redis_client.ping()
+            logger.info("[REDIS] NLP service cache connected (%s)", settings.REDIS_URL)
+        except Exception as exc:
+            logger.warning("[REDIS] NLP service cache unavailable: %s", exc)
+            _redis_client = None
+    return _redis_client
 
 
 class MedicalQueryRequest(BaseModel):
@@ -344,6 +375,93 @@ def create_app(settings: Settings) -> FastAPI:
         data = {
             "description": body.description,
             "suggestions_raw": answer,
+        }
+        payload = format_response(
+            status="success",
+            service="nlp",
+            data=data,
+            error=None,
+            request_id=request_id,
+            disclaimer=DISCLAIMER,
+        )
+        return JSONResponse(content=payload)
+
+    @app.get(
+        "/snomed/lookup",
+        response_model=BaseResponse,
+        tags=["snomed"],
+        description="Lookup SNOMED CT concepts for a free-text term (Snowstorm public API, cached in Redis).",
+    )
+    async def snomed_lookup(
+        request: Request,
+        term: str,
+        settings: Settings = Depends(get_settings),
+    ):
+        request_id = getattr(request.state, "request_id", generate_request_id())
+        q = (term or "").strip()
+        if len(q) < 2:
+            error = ErrorDetail(
+                code=400,
+                message="Query term too short.",
+                details=None,
+            )
+            payload = format_response(
+                status="error",
+                service="nlp",
+                data=None,
+                error=error.dict(),
+                request_id=request_id,
+                disclaimer=DISCLAIMER,
+            )
+            return JSONResponse(status_code=400, content=payload)
+
+        redis_client = await _get_redis(settings)
+        cache_key = f"snomed:lookup:{q.lower()}"
+        results: List[Dict[str, Any]] = []
+
+        try:
+            if redis_client is not None:
+                cached = await redis_client.get(cache_key)
+                if cached:
+                    results = json.loads(cached)
+            if not results:
+                url = (
+                    "https://browser.ihtsdotools.org/snowstorm/snomed-ct/browser/MAIN/concepts"
+                    f"?term={httpx.QueryParams({'term': q, 'limit': 5})['term']}&limit=5"
+                )
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+                items = data.get("items", [])
+                for item in items[:5]:
+                    cid = item.get("conceptId")
+                    preferred = item.get("pt", {}).get("term") or item.get("fsn", {}).get(
+                        "term"
+                    )
+                    if cid and preferred:
+                        results.append(
+                            {
+                                "concept_id": cid,
+                                "term": preferred,
+                            }
+                        )
+                if redis_client is not None:
+                    try:
+                        await redis_client.setex(cache_key, 86400, json.dumps(results))
+                    except Exception as exc:
+                        logger.warning("SNOMED cache write failed: %s", exc)
+        except Exception as exc:
+            json_log(
+                "manthana-nlp",
+                "warning",
+                event="snomed_lookup_failed",
+                error=str(exc),
+                request_id=request_id,
+            )
+
+        data = {
+            "term": q,
+            "concepts": results,
         }
         payload = format_response(
             status="success",

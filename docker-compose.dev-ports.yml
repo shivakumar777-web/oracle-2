@@ -1,0 +1,13 @@
+# Override for development / IP-based testing (no domain)
+# Use: docker-compose -f docker-compose.yml -f docker-compose.dev-ports.yml up -d
+#
+# Exposes ai-router on 0.0.0.0:8002 and frontend on 3001 so you can access via
+# http://YOUR_IP:8002 and http://YOUR_IP:3001
+# (Frontend runs separately via npm run start in frontend-manthana/manthana/)
+#
+# Port 8002 is used instead of 8000 to avoid conflict with manthana.service
+# (systemd) which may run api:app on 8000. Run: make preflight to stop it.
+services:
+  ai-router:
+    ports:
+      - "0.0.0.0:8002:8000"
