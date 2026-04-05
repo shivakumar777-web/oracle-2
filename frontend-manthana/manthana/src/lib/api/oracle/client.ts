@@ -9,12 +9,20 @@ import { ORACLE_BASE } from "../config";
 import type {
   ChatModes,
   StreamSource,
+  WebSearchLink,
   ChatResponse,
   M5DomainAnswer,
   M5Summary,
 } from "./types";
 
-export type { ChatModes, StreamSource, ChatResponse, M5DomainAnswer, M5Summary } from "./types";
+export type {
+  ChatModes,
+  StreamSource,
+  WebSearchLink,
+  ChatResponse,
+  M5DomainAnswer,
+  M5Summary,
+} from "./types";
 
 /**
  * Streaming chat backed by POST /chat.
@@ -30,6 +38,7 @@ export async function streamChat(
   onDone: () => void,
   onProgress?: (stage: string, status: string) => void,
   onSources?: (sources: StreamSource[]) => void,
+  onWebLinks?: (links: WebSearchLink[]) => void,
   onEmergency?: () => void,
   signal?: AbortSignal
 ): Promise<void> {
@@ -54,7 +63,22 @@ export async function streamChat(
     });
     if (timeout) clearTimeout(timeout);
 
-    if (!res.ok) throw new Error(`API ${res.status}`);
+    if (!res.ok) {
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        try {
+          const errBody = await res.json();
+          const msg =
+            (errBody as { message?: string; error?: string }).message ||
+            (errBody as { error?: string }).error ||
+            JSON.stringify(errBody);
+          throw new Error(`Oracle ${res.status}: ${msg}`);
+        } catch (e) {
+          if (e instanceof Error && e.message.startsWith("Oracle ")) throw e;
+        }
+      }
+      throw new Error(`Oracle API ${res.status}`);
+    }
 
     const contentType = res.headers.get("content-type") || "";
     if (contentType.includes("text/event-stream") && res.body) {
@@ -78,6 +102,23 @@ export async function streamChat(
               onProgress(parsed.stage ?? "", parsed.status ?? "");
             } else if (evtType === "sources" && onSources && Array.isArray(parsed.sources)) {
               onSources(parsed.sources);
+            } else if (
+              evtType === "web_links" &&
+              onWebLinks &&
+              Array.isArray(parsed.links)
+            ) {
+              const links: WebSearchLink[] = parsed.links
+                .filter(
+                  (x: unknown) =>
+                    x &&
+                    typeof x === "object" &&
+                    typeof (x as { url?: string }).url === "string"
+                )
+                .map((x: { title?: string; url: string }) => ({
+                  title: typeof x.title === "string" ? x.title : x.url,
+                  url: x.url,
+                }));
+              if (links.length) onWebLinks(links);
             } else if (evtType === "emergency" && parsed?.is_emergency) {
               onEmergency?.();
               onProgress?.("emergency", "detected");
@@ -94,6 +135,14 @@ export async function streamChat(
       }
       onDone();
       return;
+    }
+
+    const peekCt = contentType.toLowerCase();
+    if (peekCt.includes("text/html")) {
+      const snippet = (await res.text()).slice(0, 200);
+      throw new Error(
+        `Oracle returned HTML instead of a stream (${peekCt}). Is the proxy misconfigured or Oracle down? ${snippet}`
+      );
     }
 
     // Fallback: JSON response — simulate streaming
@@ -154,7 +203,22 @@ export async function streamM5(
     });
     if (timeout) clearTimeout(timeout);
 
-    if (!res.ok) throw new Error(`API ${res.status}`);
+    if (!res.ok) {
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        try {
+          const errBody = await res.json();
+          const msg =
+            (errBody as { message?: string; error?: string }).message ||
+            (errBody as { error?: string }).error ||
+            JSON.stringify(errBody);
+          throw new Error(`Oracle M5 ${res.status}: ${msg}`);
+        } catch (e) {
+          if (e instanceof Error && e.message.startsWith("Oracle M5 ")) throw e;
+        }
+      }
+      throw new Error(`Oracle M5 API ${res.status}`);
+    }
 
     const contentType = res.headers.get("content-type") || "";
     if (contentType.includes("text/event-stream") && res.body) {
@@ -198,6 +262,14 @@ export async function streamM5(
       }
       onDone();
       return;
+    }
+
+    const m5Ct = contentType.toLowerCase();
+    if (m5Ct.includes("text/html")) {
+      const snippet = (await res.text()).slice(0, 200);
+      throw new Error(
+        `Oracle M5 returned HTML instead of SSE. Check ORACLE_INTERNAL_URL and that Oracle is running. ${snippet}`
+      );
     }
 
     throw new Error("M5 response was not streaming");

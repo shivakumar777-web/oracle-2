@@ -18,6 +18,12 @@ export interface StreamSource {
   source?: string;
 }
 
+/** URLs from OpenRouter web search (extracted from reply + API annotations). */
+export interface WebSearchLink {
+  title: string;
+  url: string;
+}
+
 export interface ChatResponse {
   response: string;
   sources?: { title: string; url: string; domain: string }[];

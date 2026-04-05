@@ -13,21 +13,20 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from config import OracleSettings, get_oracle_settings
 
-# Shared imports
-PROJECT_ROOT = "/opt/manthana"
-import sys
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
 from services.shared.circuit_breaker import oracle_openrouter_circuit, CircuitBreakerError
+from services.shared.domain_sources import (
+    build_openrouter_web_search_parameters,
+    ranked_search_priority_entries,
+)
 from services.shared.search_utils import deduplicate_results, enrich_result, fetch_searxng, sort_by_trust
 # Local json_log (avoid heavy numpy/pillow deps)
 def json_log(logger_name: str, level: str, **fields) -> None:
@@ -67,7 +66,14 @@ try:
     _LIB_AVAILABLE = True
     json_log("manthana.oracle", "info", event="lib_loaded", modules="query_intelligence,source_router,reranker,domain_intelligence,pubmed,clinical_trials")
 except ImportError as e:
-    json_log("manthana.oracle", "warning", event="lib_unavailable", error=str(e), fallback="minimal")
+    json_log(
+        "manthana.oracle",
+        "error",
+        event="lib_unavailable",
+        error=str(e),
+        fallback="minimal",
+        hint="Set PYTHONPATH to oracle-2 and services/ai-router (see README-DEV.md).",
+    )
 
 # Fallback when lib not available
 if not _LIB_AVAILABLE:
@@ -140,6 +146,10 @@ if not _LIB_AVAILABLE:
 
     async def fetch_clinical_trials_gov(q, filters=None, page=1, page_size=5, redis_client=None):
         return {"trials": []}
+
+
+# Exposed for health endpoint (set after stub/real lib load)
+INTELLIGENCE_LIB_LOADED = _LIB_AVAILABLE
 
 CATEGORY_MAP = {
     "allopathy": "medical",
@@ -220,25 +230,45 @@ async def _openrouter_stream_with_key(
     api_key: str,
     settings: OracleSettings,
     messages: List[Dict[str, str]],
+    *,
+    web_search_parameters: Optional[Dict[str, Any]] = None,
+    enable_web: bool = True,
 ) -> AsyncGenerator[str, None]:
     cfg = effective_inference_config(settings)
-    role_cfg = resolve_role(cfg, "oracle_chat")
+    # Use free models router when ORACLE_USE_FREE_MODELS is enabled
+    role_name = "oracle_chat_free" if settings.ORACLE_USE_FREE_MODELS else "oracle_chat"
+    role_cfg = resolve_role(cfg, role_name)
     om = (settings.ORACLE_OPENROUTER_MODEL or "").strip()
     if om:
         role_cfg = role_cfg.model_copy(update={"model": om})
     client = build_async_client(api_key, settings)
+    completion_meta: Dict[str, Any] = {}
     async for delta, _model in stream_chat_async(
-        client, cfg, "oracle_chat", list(messages), role_cfg=role_cfg
+        client,
+        cfg,
+        role_name,
+        list(messages),
+        role_cfg=role_cfg,
+        web_search_parameters=web_search_parameters,
+        strip_online_suffix=not enable_web,
+        completion_meta=completion_meta,
     ):
         if delta:
             payload = json.dumps({"message": {"content": delta}, "type": "token"})
             yield f"data: {payload}\n\n"
+    if enable_web and web_search_parameters:
+        web_links = completion_meta.get("web_links") or []
+        if web_links:
+            yield _sse_event({"type": "web_links", "links": web_links})
 
 
 async def _openrouter_stream_with_circuit(
     settings: OracleSettings,
     messages: List[Dict[str, str]],
     request_id: str,
+    *,
+    web_search_parameters: Optional[Dict[str, Any]] = None,
+    enable_web: bool = True,
 ) -> AsyncGenerator[str, None]:
     from openai import APIError, RateLimitError
 
@@ -256,7 +286,13 @@ async def _openrouter_stream_with_circuit(
         key_num = "primary" if idx == 0 else f"fallback_{idx}"
         try:
             json_log("manthana.oracle", "info", event="openrouter_stream_start", key=key_num, request_id=request_id)
-            async for chunk in _openrouter_stream_with_key(api_key, settings, messages):
+            async for chunk in _openrouter_stream_with_key(
+                api_key,
+                settings,
+                messages,
+                web_search_parameters=web_search_parameters,
+                enable_web=enable_web,
+            ):
                 yield chunk
             json_log("manthana.oracle", "info", event="openrouter_stream_success", key=key_num, request_id=request_id)
             return
@@ -386,17 +422,32 @@ def _build_chat_system_prompt(
     context: str,
     sources: Optional[List[Dict[str, Any]]] = None,
     is_emergency: bool = False,
+    *,
+    primary_domain: MedicalDomain,
+    search_priority_query: str = "",
 ) -> List[Dict[str, str]]:
     base_prompt = (
         "You are Manthana, a medical AI assistant that churns five oceans of medicine "
         "(Allopathy, Ayurveda, Homeopathy, Siddha, and Unani) to extract only Amrita — "
         "pure, verified medical knowledge. Always recommend consulting a doctor for medical decisions.\n\n"
-        "WEB SEARCH CAPABILITY: You have real-time web search enabled via OpenRouter. "
-        "When answering questions about current medical information, latest treatments, "
-        "recent studies, or any query requiring up-to-date data, you MUST search the web "
-        "and provide authoritative source URLs with your answers. "
-        "Cite sources using [S1], [S2] format with full URLs."
     )
+    if primary_domain == MedicalDomain.ALLOPATHY:
+        base_prompt += (
+            "WEB SEARCH CAPABILITY: You have real-time web search enabled via OpenRouter. "
+            "When answering questions about current medical information, latest treatments, "
+            "recent studies, or any query requiring up-to-date data, you MUST search the web "
+            "and provide authoritative source URLs with your answers. "
+            "Cite sources using [S1], [S2] format with full URLs."
+        )
+    else:
+        base_prompt += (
+            "WEB SEARCH: You may use real-time web search. For this session the user chose a **traditional "
+            "medical system** (not allopathy as primary). Prefer classical texts, AYUSH portals, WHO traditional "
+            "medicine, peer-reviewed ethnopharmacology, and accredited college hospital Ayurveda/Unani/Siddha "
+            "guidance. Do **not** default to minoxidil, finasteride, or other Western first-line drugs unless "
+            "the user explicitly asks for allopathic options or emergency care. "
+            "Cite sources using [S1], [S2] with full URLs."
+        )
     if is_emergency:
         base_prompt += (
             "\n\nCRITICAL: This query appears to involve an emergency or urgent medical situation. "
@@ -432,12 +483,38 @@ def _build_chat_system_prompt(
     if evidence != "auto" and evidence in evidence_prompts:
         system_prompts.append({"role": "system", "content": f"Evidence Standard: {evidence_prompts[evidence]}"})
 
-    try:
-        med_domain = MedicalDomain(domain.lower())
-        domain_system_prompt = get_domain_system_prompt(med_domain)
-        system_prompts.append({"role": "system", "content": domain_system_prompt})
-    except (ValueError, AttributeError):
-        pass
+    domain_system_prompt = get_domain_system_prompt(primary_domain)
+    system_prompts.append({"role": "system", "content": domain_system_prompt})
+
+    # Search priorities: metadata-ranked pills (Part 2) + site hints (Part 1)
+    ranked_entries = ranked_search_priority_entries(
+        primary_domain.value,
+        search_priority_query or "",
+        top_k=6,
+    )
+    if ranked_entries:
+        lines = [
+            f"- **{e['display_name']}** ({e['short_name']}): prefer {e['site_hint']}"
+            for e in ranked_entries
+        ]
+        search_priority_block = (
+            f"SEARCH PRIORITIES ({primary_domain.value.upper()}): When searching the web, "
+            "prioritize these authoritative catalogs (in order of relevance for this session):\n"
+            + "\n".join(lines)
+            + "\nUse these sites for citations, guidelines, and evidence."
+        )
+        system_prompts.append({"role": "system", "content": search_priority_block})
+
+    if primary_domain != MedicalDomain.ALLOPATHY:
+        system_prompts.append({
+            "role": "system",
+            "content": (
+                f"UI DOMAIN LOCK: The user selected **{primary_domain.value.upper()}** in the Manthana app. "
+                "Your answer must be framed primarily in that system (dosha/dhatu/marma, organon, siddha "
+                "theory, or Unani tabiyat as appropriate). Mention modern drugs only for comparison or if the "
+                "user asks for them explicitly."
+            ),
+        })
 
     system_prompts.append({"role": "system", "content": f"Retrieved Medical Context:\n{context}"})
 
@@ -518,6 +595,9 @@ async def _oracle_llm_stream(
     sources: Optional[List[Dict[str, Any]]] = None,
     strategies: Optional[List[Any]] = None,
     is_emergency: bool = False,
+    *,
+    web_search_parameters: Optional[Dict[str, Any]] = None,
+    enable_web: bool = True,
 ) -> AsyncGenerator[str, None]:
     if is_emergency:
         yield 'data: {"type": "emergency", "is_emergency": true}\n\n'
@@ -542,7 +622,13 @@ async def _oracle_llm_stream(
     try:
         if oracle_openrouter_circuit.state.value == "open":
             raise CircuitBreakerError("LLM circuit is OPEN")
-        async for chunk in _openrouter_stream_with_circuit(settings, messages, request_id):
+        async for chunk in _openrouter_stream_with_circuit(
+            settings,
+            messages,
+            request_id,
+            web_search_parameters=web_search_parameters,
+            enable_web=enable_web,
+        ):
             yield chunk
         await oracle_openrouter_circuit._on_success()
         yield _sse_event({"type": "done"})
@@ -566,23 +652,36 @@ def create_chat_router(limiter) -> APIRouter:
     router = APIRouter(tags=["chat"])
 
     @router.post("/chat")
-    @limiter.limit("100/minute")
     async def chat(
         request: Request,
-        body: ChatRequest,
+        payload: Annotated[ChatRequest, Body()],
         settings: OracleSettings = Depends(get_oracle_settings),
     ):
         rid = getattr(request.state, "request_id", "unknown")
-        message = body.message
-        domain = body.domain or "allopathy"
-        intensity = body.intensity or "auto"
-        persona = body.persona or "auto"
-        evidence = body.evidence or "auto"
-        enable_web = body.enable_web if body.enable_web is not None else True
-        enable_trials = body.enable_trials if body.enable_trials is not None else False
+        message = payload.message
+        domain = payload.domain or "allopathy"
+        intensity = payload.intensity or "auto"
+        persona = payload.persona or "auto"
+        evidence = payload.evidence or "auto"
+        enable_web = payload.enable_web if payload.enable_web is not None else True
+        enable_trials = payload.enable_trials if payload.enable_trials is not None else False
 
-        if body.experiment_id:
-            json_log("manthana.oracle", "info", event="chat_experiment", experiment_id=body.experiment_id, request_id=rid)
+        if payload.experiment_id:
+            json_log("manthana.oracle", "info", event="chat_experiment", experiment_id=payload.experiment_id, request_id=rid)
+
+        if settings.ORACLE_ENABLE_DOMAIN_INTELLIGENCE and not _LIB_AVAILABLE:
+            async def intelligence_unavailable_stream():
+                yield _sse_error_event(
+                    "domain_intelligence_unavailable",
+                    "Domain intelligence is unavailable — ai-router modules failed to import. "
+                    "Check deployment (PYTHONPATH, MANTHANA_ROOT) or set ORACLE_ENABLE_DOMAIN_INTELLIGENCE=false for stub-only mode.",
+                )
+                yield _sse_event({"type": "done"})
+
+            return StreamingResponse(
+                intelligence_unavailable_stream(),
+                media_type="text/event-stream",
+            )
 
         # Phase 2: Query intelligence + source routing
         classification = classify_query(message)
@@ -601,9 +700,22 @@ def create_chat_router(limiter) -> APIRouter:
         effective_domain = primary_domain
         if detected_domain and detected_domain != primary_domain and is_integrative:
             json_log("manthana.oracle", "info", event="integrative_query_detected", primary_domain=primary_domain.value, detected_domain=detected_domain.value, request_id=rid)
-        elif detected_domain and detected_domain != primary_domain:
+        elif (
+            detected_domain
+            and detected_domain != primary_domain
+            and primary_domain == MedicalDomain.ALLOPATHY
+        ):
+            # Only auto-switch domain when the UI is still on default allopathy but the query names another system.
+            # Never override an explicit Ayurveda/Homeopathy/Siddha/Unani pill selection.
             effective_domain = detected_domain
-            json_log("manthana.oracle", "info", event="secondary_domain_override", primary_domain=primary_domain.value, effective_domain=effective_domain.value, request_id=rid)
+            json_log(
+                "manthana.oracle",
+                "info",
+                event="auto_domain_from_query",
+                primary_domain=primary_domain.value,
+                effective_domain=effective_domain.value,
+                request_id=rid,
+            )
 
         # Domain-specific query expansion
         # Special enhanced handling for Ayurveda to get classical shlokas
@@ -783,20 +895,43 @@ def create_chat_router(limiter) -> APIRouter:
 
         is_emergency = classification.query_type == QueryType.EMERGENCY
         messages: List[Dict[str, str]] = _build_chat_system_prompt(
-            intensity, persona, evidence, domain, context, sources=all_docs, is_emergency=is_emergency,
+            intensity,
+            persona,
+            evidence,
+            domain,
+            context,
+            sources=all_docs,
+            is_emergency=is_emergency,
+            primary_domain=primary_domain,
+            search_priority_query=message,
         )
         if enable_web:
-            messages.append({
-                "role": "system",
-                "content": (
-                    "WEB SEARCH ACTIVE: You have real-time web search enabled. "
-                    "For any query requiring current, latest, or real-time medical information, "
-                    "search the web and cite authoritative sources (WHO, NIH, PubMed, medical journals, "
-                    "government health sites) with full URLs. Always provide source links for facts, "
-                    "statistics, and recent medical developments."
-                ),
-            })
-        for h in body.history[-10:]:
+            if primary_domain == MedicalDomain.ALLOPATHY:
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "WEB SEARCH ACTIVE: You have real-time web search enabled. "
+                        "For any query requiring current, latest, or real-time medical information, "
+                        "search the web and cite authoritative sources (WHO, NIH, PubMed, medical journals, "
+                        "government health sites) with full URLs. Always provide source links for facts, "
+                        "statistics, and recent medical developments. "
+                        "When you use a web page, cite it inline as a markdown link "
+                        "`[short site name](https://full-url)` so the app can list consulted pages at the end."
+                    ),
+                })
+            else:
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "WEB SEARCH ACTIVE: Prefer sources aligned with the user's selected traditional system "
+                        "(AYUSH, classical text repositories, WHO traditional medicine, peer-reviewed "
+                        "ethnopharmacology). Do not treat Western cosmetic/pharma marketing pages as the primary "
+                        "authority when the UI domain is not allopathy. "
+                        "Cite each web page you use as a markdown link `[short site name](https://full-url)` "
+                        "so consulted URLs can be listed for the user."
+                    ),
+                })
+        for h in payload.history[-10:]:
             messages.append({"role": h.role or "user", "content": h.content or ""})
         messages.append({"role": "user", "content": message})
 
@@ -811,9 +946,32 @@ def create_chat_router(limiter) -> APIRouter:
             for i, d in enumerate(all_docs[:15])
         ]
 
+        web_search_parameters: Optional[Dict[str, Any]] = (
+            build_openrouter_web_search_parameters(effective_domain.value, query=message)
+            if enable_web
+            else None
+        )
+        if web_search_parameters:
+            json_log(
+                "manthana.oracle",
+                "info",
+                event="openrouter_web_search_tool",
+                domain=effective_domain.value,
+                engine=web_search_parameters.get("engine"),
+                allowed_domains_n=len(web_search_parameters.get("allowed_domains", []) or []),
+                request_id=rid,
+            )
+
         async def stream_generator():
             async for chunk in _oracle_llm_stream(
-                settings, messages, rid, sources_for_stream, strategies_for_progress, is_emergency=is_emergency
+                settings,
+                messages,
+                rid,
+                sources_for_stream,
+                strategies_for_progress,
+                is_emergency=is_emergency,
+                web_search_parameters=web_search_parameters,
+                enable_web=enable_web,
             ):
                 yield chunk
 

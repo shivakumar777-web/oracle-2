@@ -344,6 +344,7 @@ export default function OraclePage() {
     abortRef.current = new AbortController();
 
     const streamSourcesRef = { current: null as { title: string; url: string; domain: string; trustScore?: number }[] | null };
+    const streamWebLinksRef = { current: null as { title: string; url: string }[] | null };
     const streamContentRef = { current: "" };
     try {
       await streamChat(
@@ -365,6 +366,11 @@ export default function OraclePage() {
           try {
             const content = streamContentRef.current;
             const srcs = streamSourcesRef.current;
+            const webLinksPatch =
+              streamWebLinksRef.current && streamWebLinksRef.current.length > 0
+                ? { webSearchLinks: streamWebLinksRef.current }
+                : {};
+
             if (srcs && srcs.length > 0) {
               setMessages((prev) =>
                 prev.map((m) =>
@@ -379,6 +385,7 @@ export default function OraclePage() {
                           srcs.reduce((a, s) => a + (s.trustScore ?? 70), 0) / srcs.length
                         ),
                         verified: true,
+                        ...webLinksPatch,
                       }
                     : m
                 )
@@ -407,6 +414,7 @@ export default function OraclePage() {
                           rawData.sources?.length || rawData.results?.length || 0,
                         confidence: rawData.confidence || 88,
                         verified: true,
+                        ...webLinksPatch,
                       }
                     : m
                 )
@@ -414,14 +422,25 @@ export default function OraclePage() {
             } else {
               setMessages((prev) =>
                 prev.map((m) =>
-                  m.id === assistantId ? { ...m, content, streaming: false } : m
+                  m.id === assistantId
+                    ? { ...m, content, streaming: false, ...webLinksPatch }
+                    : m
                 )
               );
             }
           } catch {
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === assistantId ? { ...m, content: streamContentRef.current, streaming: false } : m
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: streamContentRef.current,
+                      streaming: false,
+                      ...(streamWebLinksRef.current && streamWebLinksRef.current.length > 0
+                        ? { webSearchLinks: streamWebLinksRef.current }
+                        : {}),
+                    }
+                  : m
               )
             );
           } finally {
@@ -436,6 +455,9 @@ export default function OraclePage() {
             domain: s.source || s.id,
             trustScore: s.trustScore,
           }));
+        },
+        (links) => {
+          streamWebLinksRef.current = links;
         },
         () => setIsEmergencyResponse(true),
         abortRef.current.signal

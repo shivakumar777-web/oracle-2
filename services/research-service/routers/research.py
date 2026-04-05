@@ -22,6 +22,7 @@ from services.shared.domain_sources import (
     INTEGRATIVE_CROSS_DOMAIN_CORE,
     SOURCE_SITE_FRAGMENT,
 )
+from services.shared.domain_sources_meta import source_meta_for_api
 from services.shared.models import DeepResearchRequest
 
 logger = logging.getLogger("manthana.research.deep")
@@ -111,6 +112,7 @@ def create_research_router(limiter) -> APIRouter:
             "domain_auto_sources": DOMAIN_AUTO_SOURCES,
             "integrative_core": INTEGRATIVE_CROSS_DOMAIN_CORE,
             "source_site_fragments": SOURCE_SITE_FRAGMENT,
+            "source_meta": source_meta_for_api(),
         }
 
     @router.get("/research/insights")

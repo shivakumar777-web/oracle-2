@@ -1,16 +1,22 @@
 /** @type {import('next').NextConfig} */
+/** Oracle is proxied by App Route `src/app/api/oracle-backend/[[...path]]/route.ts` (reliable SSE). ORACLE_INTERNAL_URL is read there. */
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const apiOrigin = apiUrl.replace(/\/$/, "");
+const apiOrigin = apiUrl.startsWith("/")
+  ? ""
+  : apiUrl.replace(/\/$/, "");
 
 // Parse API URL for images + CSP (fallback to localhost:8000)
 let apiHost = "localhost";
 let apiProtocol = "http";
 let apiPort = "8000";
 try {
-  const u = new URL(apiOrigin);
-  apiHost = u.hostname;
-  apiProtocol = u.protocol.replace(":", "");
-  apiPort = u.port || (apiProtocol === "https" ? "443" : "80");
+  if (apiOrigin) {
+    const u = new URL(apiOrigin);
+    apiHost = u.hostname;
+    apiProtocol = u.protocol.replace(":", "");
+    apiPort = u.port || (apiProtocol === "https" ? "443" : "80");
+  }
 } catch {
   /* keep defaults */
 }
@@ -22,24 +28,19 @@ try {
 function buildConnectOrigins() {
   const origins = new Set();
 
-  // Add unified API
-  const unified = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  origins.add(unified.replace(/\/$/, ""));
+  const addAbs = (url) => {
+    if (!url || typeof url !== "string") return;
+    const u = url.replace(/\/$/, "");
+    if (u.startsWith("http://") || u.startsWith("https://")) origins.add(u);
+  };
 
-  // Add section-specific microservices with their default ports
-  const sectionUrls = [
-    process.env.NEXT_PUBLIC_ORACLE_API_URL ?? "http://localhost:8100",
-    process.env.NEXT_PUBLIC_WEB_API_URL ?? "http://localhost:8200",
-    process.env.NEXT_PUBLIC_RESEARCH_API_URL ?? "http://localhost:8201",
-    process.env.NEXT_PUBLIC_ANALYSIS_API_URL ?? "http://localhost:8202",
-    process.env.NEXT_PUBLIC_CLINICAL_API_URL,
-  ];
+  addAbs(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
+  addAbs(process.env.NEXT_PUBLIC_ORACLE_API_URL ?? "http://localhost:8100");
+  addAbs(process.env.NEXT_PUBLIC_WEB_API_URL ?? "http://localhost:8200");
+  addAbs(process.env.NEXT_PUBLIC_RESEARCH_API_URL ?? "http://localhost:8201");
+  addAbs(process.env.NEXT_PUBLIC_ANALYSIS_API_URL ?? "http://localhost:8202");
+  addAbs(process.env.NEXT_PUBLIC_CLINICAL_API_URL);
 
-  for (const url of sectionUrls) {
-    if (url) origins.add(url.replace(/\/$/, ""));
-  }
-
-  // Convert to array and generate WebSocket variants
   const httpOrigins = Array.from(origins);
   const wsOrigins = httpOrigins.map((o) =>
     o.replace(/^https?:/, (m) => (m === "https:" ? "wss:" : "ws:"))
@@ -73,13 +74,17 @@ const nextConfig = {
 
   // API proxy rewrites: /api/auth/* stays local; /api/* → backend
   async rewrites() {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const backendUrl = (
+      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+    ).replace(/\/$/, "");
     return [
       // 1. Auth stays local — handled by Next.js API route
       { source: "/api/auth/:path*", destination: "/api/auth/:path*" },
-      // 2. All other /api/* → backend (search, chat, etc.)
-      { source: "/api/:path*", destination: `${backendUrl}/:path*` },
+      // 2. Oracle: handled by app/api/oracle-backend/[[...path]]/route.ts (do not rewrite here — breaks SSE).
+      // 3. Relative API base is a proxy path — avoid broken self-rewrite
+      ...(backendUrl.startsWith("/")
+        ? []
+        : [{ source: "/api/:path*", destination: `${backendUrl}/:path*` }]),
     ];
   },
 

@@ -7,6 +7,7 @@ export {
   streamM5,
   type ChatModes,
   type StreamSource,
+  type WebSearchLink,
   type ChatResponse,
   type M5DomainAnswer,
   type M5Summary,

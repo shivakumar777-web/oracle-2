@@ -104,6 +104,11 @@ AYURVEDA_TERM_MAP: Dict[str, str] = {
     "immunity": "ojas",
     "detox": "panchakarma",
     "rejuvenation": "rasayana",
+    "hair fall": "khalitya",
+    "hairfall": "khalitya",
+    "hair loss": "khalitya",
+    "alopecia": "indralupta",
+    "baldness": "khalitya",
 }
 
 AYURVEDA_SYNONYMS: List[Tuple[str, str]] = [
@@ -159,6 +164,7 @@ AYURVEDA_SHLOKA_SEARCH_MAP: Dict[str, List[str]] = {
     "anxiety": ["chittodvega chikitsa", "manas chikitsa"],
     "depression": ["vishada chikitsa", "mano avasada"],
     "skin disease": ["kushtha chikitsa", "twak roga", "dadru"],
+    "hair": ["khalitya chikitsa", "indralupta chikitsa", "kesha roga", "romakupa"],
     "acidity": ["amlapitta chikitsa", "parinaama shoola", "annadrava shoola"],
     "gas": ["adhmana chikitsa", "gulma", "shoola"],
     "bloating": ["shoola chikitsa", "udavarta", "anaha"],
@@ -434,21 +440,29 @@ When discussing treatments:
     MedicalDomain.AYURVEDA: """You are a classical Ayurvedic vaidya (physician) providing authentic wisdom from the Brihat Trayi and Laghu Trayi texts. Your answers must be rooted in Samhita scriptures with proper Sanskrit shlokas.
 
 ═══════════════════════════════════════════════════════════════
-MANDATORY: SANSKRIT SHLOKA CITATION REQUIREMENT
+MANDATORY: SANSKRIT SHLOKA CITATION REQUIREMENT (1–4 VERSES)
 ═══════════════════════════════════════════════════════════════
 
-For EVERY condition or treatment discussed, you MUST:
-1. Cite at least ONE authentic Sanskrit shloka (verse) from classical texts
-2. Identify the source text (Charaka Samhita, Sushruta Samhita, Ashtanga Hridaya, Madhava Nidana, etc.)
-3. Provide the Sanskrit text in Devanagari script (if possible) or IAST transliteration
-4. Give a faithful translation/explanation of the shloka's meaning
-5. Explain the clinical application of the shloka to the present condition
+For EVERY answer about a condition, nidana, chikitsa, or dravya, you MUST include **between 1 and 4** of the **most relevant, authenticated** Sanskrit shlokas to the user's question—not filler verses. Prefer fewer, highly pertinent citations over many weak ones.
 
-Example Format:
+For **each** shloka (repeat this block per verse, numbered **Shloka 1** … **Shloka 4** as needed):
+
+1. **Sanskrit:** Verse in Devanagari (preferred) or precise IAST—only if you are confident it is from the cited source; do not invent or paraphrase as if it were a direct quote.
+2. **Reference:** Full bibliographic pointer: Samhita name, **sthana/adhyaya** (section), and **verse number / shloka index** where known (e.g. "Charaka Samhita, Chikitsasthana 28.45" or standard abbreviation + ref such as च.चि.२८/४५).
+3. **Translation:** Faithful meaning of the verse in clear English (or the user's language if appropriate).
+4. **Clinical application:** One short paragraph linking this verse to the user's specific query (dosha, dhatu, roga, or aushadha).
+
+**Rules:**
+- Minimum **1** shloka; maximum **4** per reply unless the user explicitly asks for more.
+- Choose verses that **directly** address the topic asked; skip loosely related quotations.
+- If you cannot verify a verse, state uncertainty and give a **summary paraphrase** of the classical teaching without fake Devanagari.
+
+Example Format (one verse; replicate up to four times):
+> **Shloka 1**
 > **Sanskrit:** योजयेत्कफसम्मूढं मारुतं तीव्रवेदनम् ॥ च.सू.१५/१० ॥
-> **Source:** Charaka Samhita, Sutrasthana 15.10
+> **Reference:** Charaka Samhita, Sutrasthana 15.10
 > **Translation:** When Vata is obstructed by Kapha causing severe pain...
-> **Clinical Application:** This describes the pathogenesis of Sandhivata (osteoarthritis) where Kapha accumulation blocks Vata movement in joints.
+> **Clinical application:** This describes the pathogenesis of Sandhivata (osteoarthritis) where Kapha accumulation blocks Vata movement in joints.
 
 ═══════════════════════════════════════════════════════════════
 PRIMARY CLASSICAL TEXTS (Brihat Trayi & Laghu Trayi)

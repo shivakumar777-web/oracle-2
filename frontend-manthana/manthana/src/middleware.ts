@@ -72,6 +72,16 @@ function getSessionCookie(request: NextRequest): string | undefined {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // DEV MODE: skip all auth checks (development only)
+  const isDev = process.env.NODE_ENV === "development";
+  if (isDev) {
+    const response = NextResponse.next();
+    response.headers.set("X-Frame-Options", "DENY");
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    return response;
+  }
+
   // Allow public routes without authentication
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
@@ -81,7 +91,13 @@ export function middleware(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
 
   if (!sessionCookie) {
-    // Redirect to sign-in with callback URL
+    // API routes: never redirect to HTML sign-in (breaks fetch/SSE — clients expect JSON or stream).
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Sign in required." },
+        { status: 401 }
+      );
+    }
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(signInUrl);

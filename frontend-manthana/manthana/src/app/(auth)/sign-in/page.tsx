@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+
+// Dev auto-signin credentials - only active in development (npm run dev)
+const DEV_EMAIL = "shivakumarcjh@gmail.com";
+const DEV_PASSWORD = "12345678";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -11,6 +15,45 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [autoSigningIn, setAutoSigningIn] = useState(false);
+
+  // Auto-signin on dev mode (only runs once on mount)
+  useEffect(() => {
+    // Check if running in development (not production build)
+    const isDev = process.env.NODE_ENV === "development";
+    const hasAutoSignedIn = sessionStorage.getItem("dev-auto-signed-in");
+    const autoSignInDisabled = sessionStorage.getItem("dev-auto-signin-disabled");
+    
+    if (isDev && !hasAutoSignedIn && !autoSignInDisabled) {
+      setAutoSigningIn(true);
+      setEmail(DEV_EMAIL);
+      setPassword(DEV_PASSWORD);
+      
+      // Slight delay to show the UI filling in
+      const timer = setTimeout(() => {
+        authClient.signIn.email(
+          { email: DEV_EMAIL, password: DEV_PASSWORD, callbackURL: "/" },
+          {
+            onSuccess: () => {
+              sessionStorage.setItem("dev-auto-signed-in", "true");
+              router.push("/");
+            },
+            onError: (ctx) => {
+              setError(ctx.error.message ?? "Auto sign in failed");
+              setAutoSigningIn(false);
+            },
+          }
+        );
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [router]);
+
+  const disableAutoSignIn = () => {
+    sessionStorage.setItem("dev-auto-signin-disabled", "true");
+    setAutoSigningIn(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +71,30 @@ export default function SignInPage() {
     else if (data) router.push("/");
   };
 
+  // Manual dev auto-signin button handler
+  const handleDevAutoSignIn = () => {
+    setEmail(DEV_EMAIL);
+    setPassword(DEV_PASSWORD);
+    setAutoSigningIn(true);
+    setTimeout(() => {
+      authClient.signIn.email(
+        { email: DEV_EMAIL, password: DEV_PASSWORD, callbackURL: "/" },
+        {
+          onSuccess: () => {
+            sessionStorage.setItem("dev-auto-signed-in", "true");
+            router.push("/");
+          },
+          onError: (ctx) => {
+            setError(ctx.error.message ?? "Auto sign in failed");
+            setAutoSigningIn(false);
+          },
+        }
+      );
+    }, 100);
+  };
+
+  const isDev = typeof window !== "undefined" && process.env.NODE_ENV === "development";
+
   return (
     <div className="rounded-xl border border-white/[0.08] bg-black/40 backdrop-blur-sm p-8 shadow-xl">
       <h1 className="font-ui text-lg tracking-[0.2em] uppercase text-gold-h mb-1">
@@ -35,6 +102,9 @@ export default function SignInPage() {
       </h1>
       <p className="text-cream/50 text-sm mb-6">
         Access your MANTHANA account
+        {autoSigningIn && (
+          <span className="block text-gold-h mt-1">Auto-signing in (dev mode)…</span>
+        )}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -84,6 +154,31 @@ export default function SignInPage() {
           Sign up
         </Link>
       </p>
+
+      {/* Dev auto-signin button - only shows in development mode */}
+      {isDev && (
+        <div className="mt-4 pt-4 border-t border-white/[0.08]">
+          <button
+            type="button"
+            onClick={handleDevAutoSignIn}
+            disabled={loading || autoSigningIn}
+            className="w-full py-2 rounded-lg font-ui text-xs tracking-[0.1em] uppercase bg-white/5 border border-white/10 text-cream/60 hover:bg-white/10 hover:text-cream disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            Auto Sign In (Dev: {DEV_EMAIL})
+          </button>
+          <p className="text-center text-cream/30 text-xs mt-2">
+            Dev mode: automatically signs in on page load
+            {autoSigningIn && (
+              <button 
+                onClick={disableAutoSignIn}
+                className="ml-2 text-gold-h hover:underline"
+              >
+                Cancel
+              </button>
+            )}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

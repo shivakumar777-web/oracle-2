@@ -71,6 +71,10 @@ class OracleSettings(BaseSettings):
         default="openrouter",
         description="Oracle chat/M5 use OpenRouter only. (Legacy groq is not supported; do not set.)",
     )
+    ORACLE_USE_FREE_MODELS: bool = Field(
+        default=False,
+        description="When true, use openrouter/free smart router as primary with free model fallbacks. Premium Kimi K2.5 is final fallback. For testing/cost-saving only.",
+    )
 
     # ══════════════════════════════════════════════════════════════════
     #  VECTOR & SEARCH (Phase A: RAG for chat)

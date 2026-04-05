@@ -13,18 +13,16 @@ Endpoints:
 
 from __future__ import annotations
 
+# ── Path bootstrapping (must run before services.shared / ai-router imports) ──
+import paths_bootstrap
+
+paths_bootstrap.ensure_oracle_sys_path()
+
+import json as _json
 import logging
-import sys
 from contextlib import asynccontextmanager
 from typing import Optional
 
-# ── Path bootstrapping ────────────────────────────────────────────────
-import os
-PROJECT_ROOT = os.environ.get("MANTHANA_ROOT", "/opt/manthana")
-
-# Local json_log implementation (avoid heavy shared deps)
-import logging
-import json as _json
 
 def json_log(logger_name: str, level: str, **fields) -> None:
     """Emit structured JSON log without heavy dependencies."""
@@ -38,21 +36,12 @@ def json_log(logger_name: str, level: str, **fields) -> None:
         record = str(fields)
     log_obj.log(numeric_level, record)
 
-
-LIB_PATH = "/app/lib"  # ai-router modules (Docker build)
-AI_ROUTER_PATH = os.path.join(PROJECT_ROOT, "services", "ai-router")  # local dev
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-if os.path.isdir(LIB_PATH) and LIB_PATH not in sys.path:
-    sys.path.insert(0, LIB_PATH)
-elif os.path.isdir(AI_ROUTER_PATH) and AI_ROUTER_PATH not in sys.path:
-    sys.path.insert(0, AI_ROUTER_PATH)
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from config import OracleSettings, configure_logging, get_oracle_settings
@@ -163,6 +152,7 @@ def create_oracle_app() -> FastAPI:
         default_limits=[settings.ORACLE_RATE_LIMIT],
     )
     app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
 
     @app.exception_handler(RateLimitExceeded)
     async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
@@ -207,6 +197,21 @@ def create_oracle_app() -> FastAPI:
             "version": settings.SERVICE_VERSION,
             "docs": "/docs",
             "health": f"{settings.API_PREFIX}/health",
+        }
+
+    # Legacy gateway shape — frontend getHealth() calls {API_ORIGIN}/health (no /v1 prefix).
+    @app.get("/health")
+    async def legacy_gateway_health():
+        return {
+            "status": "success",
+            "data": {
+                "router": "online",
+                "services": {
+                    "oracle": "online",
+                    "nlp": "online",
+                },
+            },
+            "error": None,
         }
 
     return app

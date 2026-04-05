@@ -253,7 +253,16 @@ export default function Sidebar({
                   suppressHydrationWarning
                   onClick={() =>
                     authClient.signOut({
-                      fetchOptions: { onSuccess: () => window.location.reload() },
+                      fetchOptions: { 
+                        onSuccess: () => {
+                          // Clear dev auto-signin flags on explicit sign out
+                          if (typeof sessionStorage !== "undefined") {
+                            sessionStorage.removeItem("dev-auto-signed-in");
+                            sessionStorage.removeItem("dev-auto-signin-disabled");
+                          }
+                          window.location.reload();
+                        }
+                      },
                     })
                   }
                   className={`font-ui text-[9px] tracking-[0.12em] uppercase text-cream/40 hover:text-gold-h transition-colors ${expanded ? "" : "w-full"}`}

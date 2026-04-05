@@ -7,16 +7,12 @@ Health check endpoints for Oracle service with circuit breaker status.
 from __future__ import annotations
 
 import os
-import sys
-from typing import Any, Dict
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-# Import circuit breakers
-PROJECT_ROOT = "/opt/manthana"
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+from routers.chat import INTELLIGENCE_LIB_LOADED
+from routers.m5 import M5_ENGINE_LOADED
 from services.shared.circuit_breaker import (
     oracle_groq_circuit,
     oracle_openrouter_circuit,
@@ -97,6 +93,11 @@ def create_health_router() -> APIRouter:
                         "use_rag": getattr(settings, "ORACLE_USE_RAG", False),
                     },
                     "circuits": circuit_stats,
+                    "intelligence_modules": {
+                        "domain_intelligence": INTELLIGENCE_LIB_LOADED,
+                        "query_classification": INTELLIGENCE_LIB_LOADED,
+                        "m5_engine": M5_ENGINE_LOADED,
+                    },
                 },
                 "error": None,
             },

@@ -19,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from config import OracleSettings, get_oracle_settings
+from services.shared.domain_sources import build_openrouter_web_search_parameters
 # Local json_log (avoid heavy numpy/pillow deps)
 def json_log(logger_name: str, level: str, **fields) -> None:
     """Emit structured JSON log."""
@@ -52,8 +53,15 @@ try:
     from query_intelligence import expand_query
     _M5_ENGINE_AVAILABLE = True
 except ImportError as e:
-    json_log("manthana.oracle", "warning", event="m5_engine_unavailable", error=str(e))
+    json_log(
+        "manthana.oracle",
+        "error",
+        event="m5_engine_unavailable",
+        error=str(e),
+        hint="Ensure PYTHONPATH includes oracle-2 and services/ai-router (see README-DEV.md).",
+    )
 
+M5_ENGINE_LOADED = _M5_ENGINE_AVAILABLE
 
 # ── Models ───────────────────────────────────────────────────────────
 
@@ -152,7 +160,9 @@ WEB SEARCH CAPABILITY: You have real-time web search enabled. For latest informa
     if not keys:
         return domain, f"[{domain.value.upper()}] Response unavailable - OPENROUTER_API_KEY not configured.", sources
     cfg = effective_inference_config(settings)
-    role_cfg = resolve_role(cfg, "oracle_m5")
+    # Use free models router when ORACLE_USE_FREE_MODELS is enabled
+    role_name = "oracle_m5_free" if settings.ORACLE_USE_FREE_MODELS else "oracle_m5"
+    role_cfg = resolve_role(cfg, role_name)
     m5_model = (settings.ORACLE_OPENROUTER_MODEL_M5 or settings.ORACLE_OPENROUTER_MODEL or "").strip()
     if m5_model:
         role_cfg = role_cfg.model_copy(update={"model": m5_model})
@@ -163,9 +173,13 @@ WEB SEARCH CAPABILITY: You have real-time web search enabled. For latest informa
             content, _model = await chat_complete_async(
                 client,
                 cfg,
-                "oracle_m5",
+                role_name,
                 messages,
                 role_cfg=role_cfg,
+                web_search_parameters=build_openrouter_web_search_parameters(
+                    domain.value,
+                    query=message,
+                ),
             )
             return domain, content or "", sources
         except Exception as exc:
@@ -188,14 +202,13 @@ def create_m5_router(limiter) -> APIRouter:
     router = APIRouter(tags=["m5"])
 
     @router.post("/chat/m5")
-    @limiter.limit("60/minute")
     async def m5_chat(
         request: Request,
-        body: M5Request,
+        payload: M5Request,
         settings: OracleSettings = Depends(get_oracle_settings),
     ):
         rid = getattr(request.state, "request_id", "unknown")
-        message = body.message
+        message = payload.message
 
         json_log("manthana.oracle", "info", event="m5_query_start", query=message[:100], request_id=rid)
 

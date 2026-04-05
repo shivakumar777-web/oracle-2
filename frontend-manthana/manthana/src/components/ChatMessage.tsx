@@ -29,6 +29,8 @@ export interface ChatMessageData {
   content: string;
   domains?: string[];
   sources?: Source[];
+  /** URLs the model cited from OpenRouter web search (only when search ran). */
+  webSearchLinks?: { title: string; url: string }[];
   confidence?: number;
   sourcesCount?: number;
   verified?: boolean;
@@ -125,6 +127,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
           <PerplexityResponse
             content={message.content}
             sources={message.sources}
+            webSearchLinks={message.webSearchLinks}
             confidence={message.confidence}
           />
         )}
@@ -201,10 +204,12 @@ function markdown(content: string): string {
 function PerplexityResponse({
   content,
   sources,
+  webSearchLinks,
   confidence,
 }: {
   content: string;
   sources?: Source[];
+  webSearchLinks?: { title: string; url: string }[];
   confidence?: number;
 }) {
   const safeHtml = markdown(content);
@@ -267,6 +272,37 @@ function PerplexityResponse({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {webSearchLinks && webSearchLinks.length > 0 && (
+        <div className="pt-4 border-t border-teal/25">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2 h-2 rounded-full bg-teal-m/80" />
+            <span className="text-xs uppercase tracking-wider text-teal/90">
+              Web search — pages consulted
+            </span>
+          </div>
+          <ul className="space-y-2 list-none pl-0">
+            {webSearchLinks.map((w, i) => {
+              const href = safeHref(w.url);
+              return (
+                <li key={`${w.url}-${i}`} className="text-sm leading-snug">
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-teal-m underline hover:text-teal-h font-medium"
+                  >
+                    {w.title?.trim() || w.url}
+                  </a>
+                  <p className="text-[11px] text-cream/45 truncate mt-0.5 font-mono">
+                    {w.url}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
