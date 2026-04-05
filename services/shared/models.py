@@ -320,7 +320,7 @@ class DeepResearchResult(BaseModel):
     )
     provider_used: Optional[str] = Field(
         default=None,
-        description="LLM provider that produced synthesis (groq, openai, ollama).",
+        description="LLM provider that produced synthesis (openrouter, ollama).",
     )
 
 

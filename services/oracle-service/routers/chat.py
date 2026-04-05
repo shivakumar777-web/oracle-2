@@ -27,7 +27,7 @@ PROJECT_ROOT = "/opt/manthana"
 import sys
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
-from services.shared.circuit_breaker import oracle_groq_circuit, CircuitBreakerError
+from services.shared.circuit_breaker import oracle_openrouter_circuit, CircuitBreakerError
 from services.shared.search_utils import deduplicate_results, enrich_result, fetch_searxng, sort_by_trust
 # Local json_log (avoid heavy numpy/pillow deps)
 def json_log(logger_name: str, level: str, **fields) -> None:
@@ -188,100 +188,102 @@ class ChatRequest(BaseModel):
     experiment_id: Optional[str] = None
 
 
-# ── LLM Client Helpers ────────────────────────────────────────────────
+# ── LLM Client Helpers (OpenRouter via cloud_inference.yaml) ──────────
 
-_GROQ_PLACEHOLDER = "your_groq_api_key_here"
-
-
-def _get_groq_api_keys(settings: OracleSettings) -> List[str]:
-    """Get list of valid Groq API keys (primary + secondary)."""
-    keys = []
-    
-    # Primary key
-    key1 = (settings.ORACLE_GROQ_API_KEY or "").strip()
-    if key1 and key1 != _GROQ_PLACEHOLDER and not key1.startswith("your_") and len(key1) >= 20:
-        keys.append(key1)
-    
-    # Secondary key (for fallback when primary rate limited)
-    key2 = (settings.ORACLE_GROQ_API_KEY_2 or "").strip()
-    if key2 and key2 != _GROQ_PLACEHOLDER and not key2.startswith("your_") and len(key2) >= 20:
-        keys.append(key2)
-    
-    return keys
+from manthana_inference import resolve_role, stream_chat_async
+from services.shared.openrouter_helpers import (
+    build_async_client,
+    effective_inference_config,
+    openrouter_api_keys,
+)
 
 
-async def _groq_stream_with_key(
+def _get_openrouter_keys(settings: OracleSettings) -> List[str]:
+    return openrouter_api_keys(settings)
+
+
+def _sse_event(payload: Dict[str, Any]) -> str:
+    """Single SSE line: data: <json>\\n\\n"""
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _sse_error_event(error_code: str, user_message: str) -> str:
+    """SSE error visible to streamChat (type + message.content in fallback branch)."""
+    return _sse_event({
+        "type": "error",
+        "error": error_code,
+        "message": {"content": user_message},
+    })
+
+
+async def _openrouter_stream_with_key(
     api_key: str,
     settings: OracleSettings,
     messages: List[Dict[str, str]],
 ) -> AsyncGenerator[str, None]:
-    """Stream from Groq with a specific API key."""
-    from groq import AsyncGroq
-    client = AsyncGroq(api_key=api_key)
-    stream = await client.chat.completions.create(
-        model=settings.ORACLE_GROQ_MODEL,
-        messages=messages,
-        max_completion_tokens=1024,
-        temperature=0.1,
-        stream=True,
-    )
-    async for chunk in stream:
-        content = chunk.choices[0].delta.content if chunk.choices else None
-        if content:
-            payload = json.dumps({"message": {"content": content}, "type": "token"})
+    cfg = effective_inference_config(settings)
+    role_cfg = resolve_role(cfg, "oracle_chat")
+    om = (settings.ORACLE_OPENROUTER_MODEL or "").strip()
+    if om:
+        role_cfg = role_cfg.model_copy(update={"model": om})
+    client = build_async_client(api_key, settings)
+    async for delta, _model in stream_chat_async(
+        client, cfg, "oracle_chat", list(messages), role_cfg=role_cfg
+    ):
+        if delta:
+            payload = json.dumps({"message": {"content": delta}, "type": "token"})
             yield f"data: {payload}\n\n"
 
 
-async def _groq_stream_with_circuit(
+async def _openrouter_stream_with_circuit(
     settings: OracleSettings,
     messages: List[Dict[str, str]],
     request_id: str,
 ) -> AsyncGenerator[str, None]:
-    """Stream from Groq with automatic key rotation on rate limit."""
-    from groq import RateLimitError, APIError
-    
-    keys = _get_groq_api_keys(settings)
-    
+    from openai import APIError, RateLimitError
+
+    keys = _get_openrouter_keys(settings)
+
     if not keys:
-        yield json.dumps({"error": "no_groq_keys_configured"}) + "\n\n"
-        yield 'data: {"type": "done"}\n\n'
+        yield _sse_error_event(
+            "no_openrouter_keys_configured",
+            "OpenRouter API key not configured inside stream.",
+        )
+        yield _sse_event({"type": "done"})
         return
-    
-    # Try each key in sequence
+
     for idx, api_key in enumerate(keys):
         key_num = "primary" if idx == 0 else f"fallback_{idx}"
         try:
-            json_log("manthana.oracle", "info", event="groq_stream_start", key=key_num, request_id=request_id)
-            async for chunk in _groq_stream_with_key(api_key, settings, messages):
+            json_log("manthana.oracle", "info", event="openrouter_stream_start", key=key_num, request_id=request_id)
+            async for chunk in _openrouter_stream_with_key(api_key, settings, messages):
                 yield chunk
-            json_log("manthana.oracle", "info", event="groq_stream_success", key=key_num, request_id=request_id)
-            return  # Success - exit
+            json_log("manthana.oracle", "info", event="openrouter_stream_success", key=key_num, request_id=request_id)
+            return
         except RateLimitError as e:
-            json_log("manthana.oracle", "warning", event="groq_rate_limit", key=key_num, error=str(e), request_id=request_id)
+            json_log("manthana.oracle", "warning", event="openrouter_rate_limit", key=key_num, error=str(e), request_id=request_id)
             if idx < len(keys) - 1:
-                # Try next key
                 continue
-            else:
-                # No more keys - return error
-                yield json.dumps({"error": "rate_limit_exhausted", "message": "All Groq API keys rate limited"}) + "\n\n"
-                yield 'data: {"type": "done"}\n\n'
-                return
+            yield _sse_error_event(
+                "rate_limit_exhausted",
+                "All OpenRouter API keys are rate limited. Try again shortly.",
+            )
+            yield _sse_event({"type": "done"})
+            return
         except APIError as e:
-            json_log("manthana.oracle", "error", event="groq_api_error", key=key_num, error=str(e), request_id=request_id)
+            json_log("manthana.oracle", "error", event="openrouter_api_error", key=key_num, error=str(e), request_id=request_id)
             if idx < len(keys) - 1:
                 continue
-            else:
-                yield json.dumps({"error": "groq_api_error", "message": str(e)}) + "\n\n"
-                yield 'data: {"type": "done"}\n\n'
-                return
+            yield _sse_error_event("openrouter_api_error", str(e))
+            yield _sse_event({"type": "done"})
+            return
         except Exception as e:
-            json_log("manthana.oracle", "error", event="groq_stream_error", key=key_num, error=str(e), request_id=request_id)
+            json_log("manthana.oracle", "error", event="openrouter_stream_error", key=key_num, error=str(e), request_id=request_id)
             if idx < len(keys) - 1:
                 continue
-            else:
-                yield json.dumps({"error": "groq_stream_failed", "message": str(e)}) + "\n\n"
-                yield 'data: {"type": "done"}\n\n'
-                return
+            yield _sse_error_event("openrouter_stream_failed", str(e))
+            yield _sse_event({"type": "done"})
+            return
 
 
 # ── RAG Helpers ────────────────────────────────────────────────────────
@@ -388,7 +390,12 @@ def _build_chat_system_prompt(
     base_prompt = (
         "You are Manthana, a medical AI assistant that churns five oceans of medicine "
         "(Allopathy, Ayurveda, Homeopathy, Siddha, and Unani) to extract only Amrita — "
-        "pure, verified medical knowledge. Always recommend consulting a doctor for medical decisions."
+        "pure, verified medical knowledge. Always recommend consulting a doctor for medical decisions.\n\n"
+        "WEB SEARCH CAPABILITY: You have real-time web search enabled via OpenRouter. "
+        "When answering questions about current medical information, latest treatments, "
+        "recent studies, or any query requiring up-to-date data, you MUST search the web "
+        "and provide authoritative source URLs with your answers. "
+        "Cite sources using [S1], [S2] format with full URLs."
     )
     if is_emergency:
         base_prompt += (
@@ -502,9 +509,9 @@ Treatment typically includes:
     return system_prompts
 
 
-# ── Main Groq Stream (with progress, sources, emergency, multi-key fallback) ───────────────
+# ── Main LLM stream (OpenRouter + optional second key) ──────────────────
 
-async def _groq_stream(
+async def _oracle_llm_stream(
     settings: OracleSettings,
     messages: List[Dict[str, str]],
     request_id: str,
@@ -522,31 +529,35 @@ async def _groq_stream(
     if sources:
         yield f'data: {json.dumps({"type": "sources", "sources": sources})}\n\n'
 
-    # Check if any Groq keys are configured
-    keys = _get_groq_api_keys(settings)
+    keys = _get_openrouter_keys(settings)
     if not keys:
-        json_log("manthana.oracle", "error", event="groq_no_keys", message="No Groq API keys configured", request_id=request_id)
-        yield 'data: {"message":{"content":"Groq API key not configured. Please add ORACLE_GROQ_API_KEY to environment."}}\n\n'
-        yield 'data: {"type": "done"}\n\n'
+        json_log("manthana.oracle", "error", event="openrouter_no_keys", message="No OpenRouter API keys configured", request_id=request_id)
+        yield _sse_error_event(
+            "openrouter_no_keys",
+            "OpenRouter API key not configured. Set OPENROUTER_API_KEY or ORACLE_OPENROUTER_API_KEY in the environment.",
+        )
+        yield _sse_event({"type": "done"})
         return
 
     try:
-        if oracle_groq_circuit.state.value == "open":
-            raise CircuitBreakerError("Groq circuit is OPEN")
-        # _groq_stream_with_circuit now handles key rotation internally
-        async for chunk in _groq_stream_with_circuit(settings, messages, request_id):
+        if oracle_openrouter_circuit.state.value == "open":
+            raise CircuitBreakerError("LLM circuit is OPEN")
+        async for chunk in _openrouter_stream_with_circuit(settings, messages, request_id):
             yield chunk
-        await oracle_groq_circuit._on_success()
-        yield 'data: {"type": "done"}\n\n'
+        await oracle_openrouter_circuit._on_success()
+        yield _sse_event({"type": "done"})
     except CircuitBreakerError:
-        json_log("manthana.oracle", "warning", event="groq_circuit_open", request_id=request_id)
-        yield 'data: {"error": "groq_service_unavailable", "message": "Groq service temporarily unavailable (circuit open)"}\n\n'
-        yield 'data: {"type": "done"}\n\n'
+        json_log("manthana.oracle", "warning", event="llm_circuit_open", request_id=request_id)
+        yield _sse_error_event(
+            "llm_service_unavailable",
+            "LLM service temporarily unavailable (circuit open). Try again later.",
+        )
+        yield _sse_event({"type": "done"})
     except Exception as exc:
-        json_log("manthana.oracle", "error", event="groq_stream_error", error=str(exc), request_id=request_id)
-        await oracle_groq_circuit._on_failure()
-        yield 'data: {"error": "stream_error", "message": "An error occurred during streaming"}\n\n'
-        yield 'data: {"type": "done"}\n\n'
+        json_log("manthana.oracle", "error", event="openrouter_stream_error", error=str(exc), request_id=request_id)
+        await oracle_openrouter_circuit._on_failure()
+        yield _sse_error_event("stream_error", "An error occurred during streaming.")
+        yield _sse_event({"type": "done"})
 
 
 # ── Router Factory ───────────────────────────────────────────────────
@@ -619,7 +630,10 @@ def create_chat_router(limiter) -> APIRouter:
         
         searxng_cat = CATEGORY_MAP.get(effective_domain.value, "medical")
 
-        # Build parallel tasks
+        use_rag = settings.ORACLE_USE_RAG
+        strategies_for_progress = strategies if use_rag else []
+
+        # Build parallel tasks (Meili/Qdrant/embed/SearXNG/PubMed/trials)
         tasks: Dict[str, Any] = {}
         client = getattr(request.app.state, "client", None)
         if client is None:
@@ -627,14 +641,14 @@ def create_chat_router(limiter) -> APIRouter:
 
         redis_cli = getattr(request.app.state, "redis", None)
 
-        if SourceStrategy.MEILISEARCH in strategies or SourceStrategy.QDRANT in strategies:
+        if use_rag and (SourceStrategy.MEILISEARCH in strategies or SourceStrategy.QDRANT in strategies):
             tasks["rag"] = _with_timeout(
                 _rag_search(rag_query, settings, client, rid),
                 {"meilisearch": [], "qdrant": []},
                 timeout=6.0,
                 source="rag",
             )
-        if SourceStrategy.SEARXNG in strategies:
+        if use_rag and SourceStrategy.SEARXNG in strategies:
             # Use shloka-focused query for Ayurveda to get classical text sources
             tasks["searxng"] = _with_timeout(
                 fetch_searxng(searxng_query, searxng_cat, "json", 1, settings.SEARXNG_URL, redis_cli),
@@ -643,7 +657,8 @@ def create_chat_router(limiter) -> APIRouter:
             )
         # PubMed: allopathy-only (peer-reviewed Western medicine)
         if (
-            SourceStrategy.PUBMED in strategies
+            use_rag
+            and SourceStrategy.PUBMED in strategies
             and settings.ORACLE_ENABLE_PUBMED
             and effective_domain == MedicalDomain.ALLOPATHY
         ):
@@ -652,7 +667,8 @@ def create_chat_router(limiter) -> APIRouter:
             tasks["pubmed"] = _with_timeout(search_pubmed(pubmed_query, max_results=5), [], source="pubmed")
         # ClinicalTrials: allopathy + homeopathy (some homeopathy trials on CT.gov)
         if (
-            SourceStrategy.CLINICAL_TRIALS in strategies
+            use_rag
+            and SourceStrategy.CLINICAL_TRIALS in strategies
             and settings.ORACLE_ENABLE_TRIALS
             and effective_domain in (MedicalDomain.ALLOPATHY, MedicalDomain.HOMEOPATHY)
         ):
@@ -664,27 +680,34 @@ def create_chat_router(limiter) -> APIRouter:
                 source="trials",
             )
 
-        gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
-        task_keys = list(tasks.keys())
-        for i, r in enumerate(gathered):
-            if isinstance(r, BaseException):
-                json_log("manthana.oracle", "warning", event="chat_source_failed", source=task_keys[i], error=str(r), request_id=rid)
+        if use_rag:
+            gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
+            task_keys = list(tasks.keys())
+            for i, r in enumerate(gathered):
+                if isinstance(r, BaseException):
+                    json_log("manthana.oracle", "warning", event="chat_source_failed", source=task_keys[i], error=str(r), request_id=rid)
 
-        rag_result = {"meilisearch": [], "qdrant": []}
-        web_raw = {"results": []}
-        pubmed_articles: List[Dict[str, Any]] = []
-        trials_result = {"trials": []}
-        for k, r in zip(task_keys, gathered):
-            if isinstance(r, BaseException):
-                continue
-            if k == "rag":
-                rag_result = r if isinstance(r, dict) else {"meilisearch": [], "qdrant": []}
-            elif k == "searxng":
-                web_raw = r if isinstance(r, dict) else {"results": []}
-            elif k == "pubmed":
-                pubmed_articles = r if isinstance(r, list) else []
-            elif k == "trials":
-                trials_result = r if isinstance(r, dict) else {"trials": []}
+            rag_result = {"meilisearch": [], "qdrant": []}
+            web_raw = {"results": []}
+            pubmed_articles: List[Dict[str, Any]] = []
+            trials_result = {"trials": []}
+            for k, r in zip(task_keys, gathered):
+                if isinstance(r, BaseException):
+                    continue
+                if k == "rag":
+                    rag_result = r if isinstance(r, dict) else {"meilisearch": [], "qdrant": []}
+                elif k == "searxng":
+                    web_raw = r if isinstance(r, dict) else {"results": []}
+                elif k == "pubmed":
+                    pubmed_articles = r if isinstance(r, list) else []
+                elif k == "trials":
+                    trials_result = r if isinstance(r, dict) else {"trials": []}
+        else:
+            json_log("manthana.oracle", "info", event="chat_rag_disabled", request_id=rid)
+            rag_result = {"meilisearch": [], "qdrant": []}
+            web_raw = {"results": []}
+            pubmed_articles = []
+            trials_result = {"trials": []}
 
         # Normalize all docs to {title, content, _source, url, trustScore}
         all_docs: List[Dict[str, Any]] = []
@@ -762,6 +785,17 @@ def create_chat_router(limiter) -> APIRouter:
         messages: List[Dict[str, str]] = _build_chat_system_prompt(
             intensity, persona, evidence, domain, context, sources=all_docs, is_emergency=is_emergency,
         )
+        if enable_web:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "WEB SEARCH ACTIVE: You have real-time web search enabled. "
+                    "For any query requiring current, latest, or real-time medical information, "
+                    "search the web and cite authoritative sources (WHO, NIH, PubMed, medical journals, "
+                    "government health sites) with full URLs. Always provide source links for facts, "
+                    "statistics, and recent medical developments."
+                ),
+            })
         for h in body.history[-10:]:
             messages.append({"role": h.role or "user", "content": h.content or ""})
         messages.append({"role": "user", "content": message})
@@ -778,8 +812,8 @@ def create_chat_router(limiter) -> APIRouter:
         ]
 
         async def stream_generator():
-            async for chunk in _groq_stream(
-                settings, messages, rid, sources_for_stream, strategies, is_emergency=is_emergency
+            async for chunk in _oracle_llm_stream(
+                settings, messages, rid, sources_for_stream, strategies_for_progress, is_emergency=is_emergency
             ):
                 yield chunk
 

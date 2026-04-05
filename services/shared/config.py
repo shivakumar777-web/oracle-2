@@ -113,9 +113,9 @@ class Settings(BaseSettings):
     #  LLM SETTINGS (used by orchestrator / LiteLLM)
     # ══════════════════════════════════════════════════════════════════
 
-    GROQ_API_KEY: str = Field(
+    OPENROUTER_API_KEY: str = Field(
         default="",
-        description="Groq API key for LiteLLM proxy (llama-3.3-70b).",
+        description="OpenRouter API key for cloud LLM (LiteLLM / orchestration).",
     )
     HF_TOKEN: str = Field(
         default="",
@@ -211,7 +211,7 @@ class Settings(BaseSettings):
     )
     GROQ_MODEL: str = Field(
         default="llama-3.3-70b-versatile",
-        description="Groq model ID used via LiteLLM for synthesis.",
+        description="Deprecated; unused. Cloud LLM is OpenRouter — models in config/cloud_inference.yaml.",
     )
 
     # Device

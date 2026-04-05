@@ -1,6 +1,7 @@
 """
 Unit tests for orchestrator.py — async functions with mocked HTTP.
 """
+import os
 import re
 import pytest
 import respx
@@ -239,22 +240,25 @@ async def test_search_own_index_failure_returns_empty(respx_mock):
 
 # ── synthesize ───────────────────────────────────────────────────────
 @pytest.mark.asyncio
-async def test_synthesize_mocked_groq():
-    mock_groq = MagicMock()
-    mock_groq.chat.completions.create.return_value = MagicMock(
-        choices=[MagicMock(message=MagicMock(content="Synthesized answer."))]
+async def test_synthesize_mocked_groq(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-for-synthesize")
+    monkeypatch.setenv(
+        "CLOUD_INFERENCE_CONFIG_PATH",
+        os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "config", "cloud_inference.yaml")
+        ),
     )
-    with patch("orchestrator._get_groq", return_value=mock_groq):
+    with patch("manthana_inference.chat_complete_sync", return_value=("Synthesized answer.", "m")):
         with patch("orchestrator._get_redis", new_callable=AsyncMock, return_value=None):
             result = await synthesize("query", "context")
             assert result == "Synthesized answer."
 
 
 @pytest.mark.asyncio
-async def test_synthesize_no_groq_returns_empty():
-    with patch("orchestrator._get_groq", return_value=None):
-        result = await synthesize("query", "context")
-        assert result == ""
+async def test_synthesize_no_groq_returns_empty(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    result = await synthesize("query", "context")
+    assert result == ""
 
 
 # ── manthana_search ───────────────────────────────────────────────────

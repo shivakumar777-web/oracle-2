@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import CosmicBackground from "./CosmicBackground";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
@@ -55,6 +55,8 @@ function MobileLangBar() {
 }
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isAnalyseRoute = pathname.startsWith("/analyse");
   const [expanded, setExpanded] = useState(false);
   const [overlay, setOverlay] = useState<OverlayType>(null);
   const { isFirst, markSeen } = useFirstVisit();
@@ -85,6 +87,19 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       router.push(qs ? `/clinical-tools?${qs}` : "/clinical-tools");
     };
   }, [router]);
+
+  if (isAnalyseRoute) {
+    return (
+      <LangProvider>
+        <ToastProvider>
+          <div className="relative min-h-screen overflow-x-hidden">
+            <ErrorBoundary>{children}</ErrorBoundary>
+            <ToastContainer />
+          </div>
+        </ToastProvider>
+      </LangProvider>
+    );
+  }
 
   return (
     <LangProvider>

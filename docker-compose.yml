@@ -8,7 +8,7 @@
 #     • Logging driver with 10 MB rotation on all services
 #     • Security: read_only, no_new_privileges, cap_drop where safe
 #     • Fixed LiteLLM port collision (was 11434 → now 4000)
-#     • Fixed manthana-api env: EMBEDDING_MODEL, GROQ_MODEL added
+#     • Cloud LLM: OPENROUTER_API_KEY (models: config/cloud_inference.yaml)
 #     • Added Promtail for log shipping → Loki
 #     • Consistent restart: unless-stopped everywhere
 #     • Added expose directives for internal-only services
@@ -21,7 +21,7 @@
 #    ACME_EMAIL           — Let's Encrypt email
 #    TRAEFIK_AUTH          — htpasswd string for Traefik dashboard
 #    MEILI_MASTER_KEY     — Meilisearch admin key
-#    GROQ_API_KEY         — Groq inference API key
+#    OPENROUTER_API_KEY   — OpenRouter API key (chat, Oracle, deep research)
 #    HF_TOKEN             — Hugging Face access token
 #    LITELLM_MASTER_KEY   — LiteLLM proxy master key
 #    SEARXNG_SECRET       — SearXNG secret key
@@ -159,8 +159,8 @@ services:
 
   ai-router:
     build:
-      context: .
-      dockerfile: services/ai-router/Dockerfile
+      context: ..
+      dockerfile: oracle-2/services/ai-router/Dockerfile
     container_name: manthana-ai-router
     restart: unless-stopped
     logging: *default-logging
@@ -169,10 +169,11 @@ services:
       - SERVICE_NAME=ai-router
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Infrastructure URLs (match config.py defaults)
-      # Chat: Groq (cloud). Embeddings: Ollama nomic-embed-text for Qdrant
+      # Chat: OpenRouter (cloud). Embeddings: Ollama nomic-embed-text for Qdrant
       - EMBED_URL=http://ollama:11434
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_API_KEY_2=${OPENROUTER_API_KEY_2:-}
+      - CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
       - QDRANT_URL=http://qdrant:6333
       - MEILISEARCH_URL=http://meilisearch:7700
       - MEILISEARCH_KEY=${MEILI_MASTER_KEY}
@@ -261,8 +262,8 @@ services:
   # ── Oracle Service (Chat & M5) ────────────────────────────────
   oracle-service:
     build:
-      context: .
-      dockerfile: services/oracle-service/Dockerfile
+      context: ..
+      dockerfile: oracle-2/services/oracle-service/Dockerfile
     container_name: manthana-oracle
     restart: unless-stopped
     logging: *default-logging
@@ -270,9 +271,9 @@ services:
     environment:
       - SERVICE_NAME=oracle-service
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - ORACLE_GROQ_API_KEY=${GROQ_API_KEY}
-      - ORACLE_GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
-      - ORACLE_GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_API_KEY_2=${OPENROUTER_API_KEY_2:-}
+      - CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
       - ORACLE_REDIS_URL=redis://redis:6379
       - ORACLE_MEILISEARCH_URL=http://meilisearch:7700
       - ORACLE_MEILISEARCH_KEY=${MEILI_MASTER_KEY}
@@ -313,8 +314,8 @@ services:
   # ── Web Service (Search) ─────────────────────────────────────
   web-service:
     build:
-      context: .
-      dockerfile: services/web-service/Dockerfile
+      context: ..
+      dockerfile: oracle-2/services/web-service/Dockerfile
     image: manthana-web:latest
     container_name: manthana-web
     restart: unless-stopped
@@ -327,8 +328,9 @@ services:
       - WEB_MEILISEARCH_URL=http://meilisearch:7700
       - WEB_MEILISEARCH_KEY=${MEILI_MASTER_KEY}
       - WEB_REDIS_URL=redis://redis:6379
-      - WEB_GROQ_API_KEY=${GROQ_API_KEY}
-      - WEB_GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_API_KEY_2=${OPENROUTER_API_KEY_2:-}
+      - CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
       - NCBI_API_KEY=${NCBI_API_KEY:-}
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
       - OPENALEX_MAILTO=${OPENALEX_MAILTO:-}
@@ -368,8 +370,8 @@ services:
   # ── Research Service (Deep Research & Plagiarism) ──────────────
   research-service:
     build:
-      context: .
-      dockerfile: services/research-service/Dockerfile
+      context: ..
+      dockerfile: oracle-2/services/research-service/Dockerfile
     container_name: manthana-research
     restart: unless-stopped
     logging: *default-logging
@@ -377,10 +379,12 @@ services:
     environment:
       - SERVICE_NAME=research-service
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - RESEARCH_GROQ_API_KEY=${GROQ_API_KEY}
-      - RESEARCH_GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_API_KEY_2=${OPENROUTER_API_KEY_2:-}
+      - CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
       - RESEARCH_REDIS_URL=redis://redis:6379
       - SEARXNG_URL=http://searxng:8080
+      - RESEARCH_USE_LEGACY_RAG=${RESEARCH_USE_LEGACY_RAG:-true}
       # Phase 1 — Deep Research RAG (read-only shared infra)
       - RESEARCH_MEILISEARCH_URL=http://meilisearch:7700
       - RESEARCH_MEILISEARCH_KEY=${MEILI_MASTER_KEY:-}
@@ -934,8 +938,8 @@ services:
 
   manthana-api:
     build:
-      context: .
-      dockerfile: Dockerfile.api
+      context: ..
+      dockerfile: oracle-2/Dockerfile.api
     container_name: manthana-api
     restart: unless-stopped
     logging: *default-logging
@@ -952,8 +956,9 @@ services:
       - MEILISEARCH_URL=http://meilisearch:7700
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
       - EMBEDDING_MODEL=nomic-embed-text
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_API_KEY_2=${OPENROUTER_API_KEY_2:-}
+      - CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
       - EXTRA_CORS_ORIGINS=${EXTRA_CORS_ORIGINS:-}
     ports:
@@ -1340,7 +1345,7 @@ services:
     ports:
       - "127.0.0.1:4000:4000"
     environment:
-      - GROQ_API_KEY=${GROQ_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - HF_TOKEN=${HF_TOKEN}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
     volumes:

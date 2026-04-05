@@ -3,19 +3,24 @@ Contract tests for research-service deep research prompts (Phase 3.3 intent stru
 """
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
 _root = Path(__file__).resolve().parents[1]
 _rs = _root / "services" / "research-service"
-# Repo root first for services.shared, then research-service so it shadows root orchestrator.py.
+# Load research-service orchestrator by file path so we never pick up repo-root orchestrator.py
+# (which may already be in sys.modules from other tests).
+_orch_path = _rs / "orchestrator.py"
+_spec = importlib.util.spec_from_file_location("research_service_orchestrator", _orch_path)
+if _spec is None or _spec.loader is None:
+    raise RuntimeError(f"Cannot load {_orch_path}")
+_rs_orch = importlib.util.module_from_spec(_spec)
 sys.path.insert(0, str(_root))
 sys.path.insert(0, str(_rs))
-
-from orchestrator import (  # noqa: E402
-    build_deep_research_prompt,
-    _sections_json_template,
-)
+_spec.loader.exec_module(_rs_orch)
+build_deep_research_prompt = _rs_orch.build_deep_research_prompt
+_sections_json_template = _rs_orch._sections_json_template
 
 
 def _prompts(intent: str, output_format: str = "structured"):

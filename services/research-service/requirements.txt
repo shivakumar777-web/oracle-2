@@ -12,8 +12,7 @@ pydantic-settings>=2.3.0
 # Rate Limiting
 slowapi>=0.1.9
 
-# LLM
-groq>=0.9.0
+# LLM (OpenRouter via manthana-inference)
 openai>=1.40.0
 
 # Auth (Better Auth JWKS)
@@ -40,3 +39,8 @@ asyncpg>=0.29.0
 
 # Production: Database migrations
 alembic>=1.13.0
+
+# Hybrid Deep Research (GPT Researcher + SearXNG retriever + LangGraph)
+gpt-researcher>=0.14.8,<0.15
+langgraph>=1.1.0,<2
+langchain-openai>=0.2.0

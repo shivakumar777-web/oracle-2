@@ -1,8 +1,6 @@
 """
 Plagiarism routes: /v1/plagiarism/check, /v1/plagiarism/health
 """
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import APIRouter, Depends, Request
@@ -28,11 +26,11 @@ def create_plagiarism_router(limiter: "Limiter") -> APIRouter:
     @limiter.limit("60/minute")
     async def plagiarism_check_endpoint(
         request: Request,
-        body: PlagiarismCheckRequest,
+        payload: PlagiarismCheckRequest,
         user: Optional[dict] = Depends(get_protected_user),
     ):
-        text: str = body.text
-        scan_id: str = body.scanId or ""
+        text: str = payload.text
+        scan_id: str = payload.scanId or ""
         rid = getattr(request.state, "request_id", generate_request_id())
         qdrant_client = getattr(request.app.state, "qdrant_client", None)
         try:

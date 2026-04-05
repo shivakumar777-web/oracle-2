@@ -10,24 +10,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY services/oracle-service/requirements.txt .
+COPY oracle-2/services/oracle-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY packages/manthana-inference /tmp/manthana-inference
+RUN pip install --no-cache-dir /tmp/manthana-inference
+
+COPY config/cloud_inference.yaml /app/config/cloud_inference.yaml
+
 # Copy shared modules
-COPY services/shared/ /app/services/shared/
+COPY oracle-2/services/shared/ /app/services/shared/
 
 # Copy ai-router intelligence modules (Phase A: Oracle fix plan)
 # All 7 modules must be in same dir for cross-imports (query_intelligence, source_router, etc.)
-COPY services/ai-router/domain_intelligence.py /app/lib/
-COPY services/ai-router/query_intelligence.py /app/lib/
-COPY services/ai-router/source_router.py /app/lib/
-COPY services/ai-router/reranker.py /app/lib/
-COPY services/ai-router/pubmed_client.py /app/lib/
-COPY services/ai-router/clinical_trials.py /app/lib/
-COPY services/ai-router/m5_engine.py /app/lib/
+COPY oracle-2/services/ai-router/domain_intelligence.py /app/lib/
+COPY oracle-2/services/ai-router/query_intelligence.py /app/lib/
+COPY oracle-2/services/ai-router/source_router.py /app/lib/
+COPY oracle-2/services/ai-router/reranker.py /app/lib/
+COPY oracle-2/services/ai-router/pubmed_client.py /app/lib/
+COPY oracle-2/services/ai-router/clinical_trials.py /app/lib/
+COPY oracle-2/services/ai-router/m5_engine.py /app/lib/
 
 # Copy application code
-COPY services/oracle-service/ .
+COPY oracle-2/services/oracle-service/ .
+
+ENV CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
 
 # Set Python path for shared imports and lib (ai-router modules)
 ENV PYTHONPATH=/app:/app/lib

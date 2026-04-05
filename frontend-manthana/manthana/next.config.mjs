@@ -51,7 +51,17 @@ function buildConnectOrigins() {
 const connectOrigins = buildConnectOrigins();
 
 const nextConfig = {
+  reactStrictMode: true,
   eslint: { ignoreDuringBuilds: true },
+  transpilePackages: [
+    "@cornerstonejs/core",
+    "@cornerstonejs/tools",
+    "@cornerstonejs/dicom-image-loader",
+    "@cornerstonejs/codec-charls",
+    "@cornerstonejs/codec-libjpeg-turbo-8bit",
+    "@cornerstonejs/codec-openjpeg",
+    "@cornerstonejs/codec-openjph",
+  ],
   // Allow images from backend and medical image sources
   images: {
     remotePatterns: [
@@ -105,12 +115,32 @@ const nextConfig = {
     ];
   },
 
-  // Webpack: handle DICOM files
-  webpack(config) {
+  // Webpack: DICOM assets + Cornerstone3D browser bundle
+  webpack(config, { isServer }) {
     config.module.rules.push({
       test: /\.dcm$/,
       use: "file-loader",
     });
+
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+      config.resolve.conditionNames = [
+        "import",
+        "module",
+        "browser",
+        "default",
+      ];
+    }
+
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      ".js": [".ts", ".tsx", ".js", ".jsx"],
+    };
+
     return config;
   },
 };

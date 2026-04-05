@@ -120,16 +120,14 @@ async def _rag_search(query: str, settings: OracleSettings, client: httpx.AsyncC
     return {"meilisearch": meili, "qdrant": qdrant}
 
 
-# ── LLM Helpers ────────────────────────────────────────────────────────
+# ── LLM Helpers (OpenRouter) ───────────────────────────────────────────
 
-_GROQ_PLACEHOLDER = "your_groq_api_key_here"
-
-
-def _get_groq_api_key(settings: OracleSettings) -> str:
-    key = (settings.ORACLE_GROQ_API_KEY or "").strip()
-    if not key or key == _GROQ_PLACEHOLDER or key.startswith("your_") or len(key) < 20:
-        return ""
-    return key
+from manthana_inference import chat_complete_async, resolve_role
+from services.shared.openrouter_helpers import (
+    build_async_client,
+    effective_inference_config,
+    openrouter_api_keys,
+)
 
 
 async def _query_domain_llm_async(
@@ -139,32 +137,49 @@ async def _query_domain_llm_async(
     sources: List[Dict[str, Any]],
     rid: str,
 ) -> tuple[MedicalDomain, str, List[Dict[str, Any]]]:
-    """Query LLM for a single domain using AsyncGroq."""
-    api_key = _get_groq_api_key(settings)
+    """Query LLM for a single domain via OpenRouter (role oracle_m5)."""
+    keys = openrouter_api_keys(settings)
     domain_prompt = get_domain_system_prompt(domain)
     m5_appendix = """
 You are answering in M5 (Five Domain) mode. The user will see your response alongside answers from 4 other medical systems. Provide a comprehensive answer from YOUR domain perspective, emphasizing what makes your system unique. Keep it informative but concise (300-500 words) for comparison purposes.
+
+WEB SEARCH CAPABILITY: You have real-time web search enabled. For latest information, recent studies, current guidelines, or any time-sensitive medical query, search the web and provide authoritative source URLs (WHO, NIH, PubMed, government health sites, medical journals) with your answers. Cite sources naturally within your response.
 """
     messages = [
         {"role": "system", "content": domain_prompt + m5_appendix},
         {"role": "user", "content": message},
     ]
-    if not api_key:
-        return domain, f"[{domain.value.upper()}] Response unavailable - API key not configured.", sources
-    try:
-        from groq import AsyncGroq
-        client = AsyncGroq(api_key=api_key)
-        completion = await client.chat.completions.create(
-            model=settings.ORACLE_GROQ_MODEL,
-            messages=messages,
-            max_completion_tokens=600,
-            temperature=0.1,
-        )
-        content = completion.choices[0].message.content or ""
-        return domain, content, sources
-    except Exception as exc:
-        json_log("manthana.oracle", "error", event="m5_domain_llm_error", domain=domain.value, error=str(exc), request_id=rid)
-        return domain, f"[{domain.value.upper()}] Error: {str(exc)[:100]}", sources
+    if not keys:
+        return domain, f"[{domain.value.upper()}] Response unavailable - OPENROUTER_API_KEY not configured.", sources
+    cfg = effective_inference_config(settings)
+    role_cfg = resolve_role(cfg, "oracle_m5")
+    m5_model = (settings.ORACLE_OPENROUTER_MODEL_M5 or settings.ORACLE_OPENROUTER_MODEL or "").strip()
+    if m5_model:
+        role_cfg = role_cfg.model_copy(update={"model": m5_model})
+    last_err: str = ""
+    for api_key in keys:
+        try:
+            client = build_async_client(api_key, settings)
+            content, _model = await chat_complete_async(
+                client,
+                cfg,
+                "oracle_m5",
+                messages,
+                role_cfg=role_cfg,
+            )
+            return domain, content or "", sources
+        except Exception as exc:
+            last_err = str(exc)
+            json_log(
+                "manthana.oracle",
+                "warning",
+                event="m5_domain_llm_retry",
+                domain=domain.value,
+                error=last_err,
+                request_id=rid,
+            )
+    json_log("manthana.oracle", "error", event="m5_domain_llm_error", domain=domain.value, error=last_err, request_id=rid)
+    return domain, f"[{domain.value.upper()}] Error: {last_err[:100]}", sources
 
 
 # ── Router Factory ───────────────────────────────────────────────────
@@ -209,60 +224,65 @@ def create_m5_router(limiter) -> APIRouter:
             MedicalDomain.UNANI,
         ]
 
+        use_rag = settings.ORACLE_USE_RAG
+
         async def query_single_domain(domain: MedicalDomain) -> tuple[MedicalDomain, str, List[Dict]]:
-            expanded = expand_query_for_domain(message, domain)
-            domain_query = expanded[-1] if len(expanded) > 1 else message
-            rag_result = await _rag_search(domain_query, settings, client, rid)
             sources: List[Dict[str, Any]] = []
-            for doc in rag_result.get("meilisearch", [])[:5]:
-                url = doc.get("url", "")
-                base_score = 85
-                domain_boost = get_domain_trust_boost(domain, url)
-                sources.append({
-                    "title": doc.get("title", ""),
-                    "url": url,
-                    "trustScore": base_score + domain_boost,
-                    "_source": "Meili",
-                })
-            for doc in rag_result.get("qdrant", [])[:5]:
-                url = doc.get("url", "")
-                base_score = 85
-                domain_boost = get_domain_trust_boost(domain, url)
-                sources.append({
-                    "title": doc.get("title", ""),
-                    "url": url,
-                    "trustScore": base_score + domain_boost,
-                    "_source": "Qdrant",
-                })
-            if domain == MedicalDomain.ALLOPATHY:
-                if settings.ORACLE_ENABLE_PUBMED:
-                    pubmed_exp = expand_query(message, "allopathy")
-                    pubmed_q = pubmed_exp[1] if len(pubmed_exp) > 1 else message
-                    try:
-                        articles = await search_pubmed(pubmed_q, max_results=3)
-                        for art in articles:
-                            sources.append({
-                                "title": art.get("title", ""),
-                                "url": art.get("url", ""),
-                                "trustScore": 95,
-                                "_source": "PubMed",
-                            })
-                    except Exception:
-                        pass
-                if settings.ORACLE_ENABLE_TRIALS:
-                    try:
-                        trials_res = await fetch_clinical_trials_gov(
-                            message, filters={"status": "active"}, page_size=3, redis_client=redis_cli,
-                        )
-                        for t in trials_res.get("trials", [])[:3]:
-                            sources.append({
-                                "title": t.get("title", ""),
-                                "url": t.get("url", ""),
-                                "trustScore": 93,
-                                "_source": "ClinicalTrials",
-                            })
-                    except Exception:
-                        pass
+            if use_rag:
+                expanded = expand_query_for_domain(message, domain)
+                domain_query = expanded[-1] if len(expanded) > 1 else message
+                rag_result = await _rag_search(domain_query, settings, client, rid)
+                for doc in rag_result.get("meilisearch", [])[:5]:
+                    url = doc.get("url", "")
+                    base_score = 85
+                    domain_boost = get_domain_trust_boost(domain, url)
+                    sources.append({
+                        "title": doc.get("title", ""),
+                        "url": url,
+                        "trustScore": base_score + domain_boost,
+                        "_source": "Meili",
+                    })
+                for doc in rag_result.get("qdrant", [])[:5]:
+                    url = doc.get("url", "")
+                    base_score = 85
+                    domain_boost = get_domain_trust_boost(domain, url)
+                    sources.append({
+                        "title": doc.get("title", ""),
+                        "url": url,
+                        "trustScore": base_score + domain_boost,
+                        "_source": "Qdrant",
+                    })
+                if domain == MedicalDomain.ALLOPATHY:
+                    if settings.ORACLE_ENABLE_PUBMED:
+                        pubmed_exp = expand_query(message, "allopathy")
+                        pubmed_q = pubmed_exp[1] if len(pubmed_exp) > 1 else message
+                        try:
+                            articles = await search_pubmed(pubmed_q, max_results=3)
+                            for art in articles:
+                                sources.append({
+                                    "title": art.get("title", ""),
+                                    "url": art.get("url", ""),
+                                    "trustScore": 95,
+                                    "_source": "PubMed",
+                                })
+                        except Exception:
+                            pass
+                    if settings.ORACLE_ENABLE_TRIALS:
+                        try:
+                            trials_res = await fetch_clinical_trials_gov(
+                                message, filters={"status": "active"}, page_size=3, redis_client=redis_cli,
+                            )
+                            for t in trials_res.get("trials", [])[:3]:
+                                sources.append({
+                                    "title": t.get("title", ""),
+                                    "url": t.get("url", ""),
+                                    "trustScore": 93,
+                                    "_source": "ClinicalTrials",
+                                })
+                        except Exception:
+                            pass
+            else:
+                json_log("manthana.oracle", "info", event="m5_rag_disabled", domain=domain.value, request_id=rid)
             return await _query_domain_llm_async(settings, domain, message, sources, rid)
 
         domain_results = await asyncio.gather(*[query_single_domain(d) for d in domains])

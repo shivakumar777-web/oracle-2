@@ -1,11 +1,13 @@
 """
-Multi-provider LLM fallback: Groq → OpenAI → Ollama.
+Multi-provider LLM: OpenRouter (SSOT) → optional Ollama offline fallback.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
+from pathlib import Path
 from typing import Awaitable, Callable, Dict, List, Tuple
 
 import httpx
@@ -14,63 +16,57 @@ from config import ResearchSettings
 
 logger = logging.getLogger("manthana.research.llm_router")
 
-_GROQ_PLACEHOLDER = "your_groq_api_key_here"
+
+def _openrouter_keys(settings: ResearchSettings) -> List[str]:
+    keys: List[str] = []
+    k1 = (settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+    k2 = (settings.OPENROUTER_API_KEY_2 or os.environ.get("OPENROUTER_API_KEY_2") or "").strip()
+    for k in (k1, k2):
+        if k and len(k) >= 8 and k not in keys:
+            keys.append(k)
+    return keys
 
 
-def _groq_key(settings: ResearchSettings) -> str:
-    key = (settings.RESEARCH_GROQ_API_KEY or "").strip()
-    if not key or key == _GROQ_PLACEHOLDER or key.startswith("your_") or len(key) < 20:
-        return ""
-    return key
+def _load_cfg():
+    from manthana_inference import load_cloud_inference_config
+
+    path = (os.environ.get("CLOUD_INFERENCE_CONFIG_PATH") or "").strip()
+    return load_cloud_inference_config(Path(path) if path else None)
 
 
-async def _call_groq(
+async def _call_openrouter(
     messages: List[Dict[str, str]],
     max_tokens: int,
     temperature: float,
     settings: ResearchSettings,
+    log_fn: Callable[[str], None] | None,
 ) -> str:
-    api_key = _groq_key(settings)
-    if not api_key:
-        raise ValueError("Groq API key not configured")
-    from groq import Groq
+    from manthana_inference import build_openrouter_async_client, chat_complete_async, resolve_role
 
-    groq = Groq(api_key=api_key)
-    model = settings.RESEARCH_GROQ_MODEL
-
-    def _sync() -> str:
-        completion = groq.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_completion_tokens=max_tokens,
-            temperature=temperature,
-            stream=False,
-        )
-        return completion.choices[0].message.content or ""
-
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _sync)
-
-
-async def _call_openai(
-    messages: List[Dict[str, str]],
-    max_tokens: int,
-    temperature: float,
-    settings: ResearchSettings,
-) -> str:
-    if not (settings.RESEARCH_OPENAI_API_KEY or "").strip():
-        raise ValueError("OpenAI key not configured")
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=settings.RESEARCH_OPENAI_API_KEY)
-    model = settings.RESEARCH_OPENAI_FALLBACK_MODEL or "gpt-4o-mini"
-    resp = await client.chat.completions.create(
-        model=model,
-        messages=messages,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    return resp.choices[0].message.content or ""
+    keys = _openrouter_keys(settings)
+    if not keys:
+        raise ValueError("OpenRouter API key not configured")
+    cfg = _load_cfg()
+    role_cfg = resolve_role(cfg, "research_synthesis")
+    # Allow caller overrides while keeping YAML model/fallbacks
+    rc = role_cfg.model_copy(update={"max_tokens": max_tokens, "temperature": temperature})
+    last_err: Exception | None = None
+    for api_key in keys:
+        try:
+            client = build_openrouter_async_client(api_key, cfg)
+            text, _model = await chat_complete_async(
+                client,
+                cfg,
+                "research_synthesis",
+                messages,
+                role_cfg=rc,
+            )
+            return text
+        except Exception as e:
+            last_err = e
+            if log_fn:
+                log_fn(f"OpenRouter key failed ({e}), trying next...")
+    raise RuntimeError(f"OpenRouter failed: {last_err}")
 
 
 async def _call_ollama(
@@ -106,17 +102,27 @@ async def llm_with_fallback(
     log_fn: Callable[[str], None] | None = None,
 ) -> Tuple[str, str]:
     """Returns (content, provider_used)."""
-    providers: List[Tuple[str, Callable[..., Awaitable[str]]]] = [
-        ("groq", _call_groq),
-        ("openai", _call_openai),
-        ("ollama", _call_ollama),
-    ]
+    providers: List[Tuple[str, Callable[..., Awaitable[str]]]] = []
+
+    if _openrouter_keys(settings):
+        async def _or() -> str:
+            return await _call_openrouter(messages, max_tokens, temperature, settings, log_fn)
+
+        providers.append(("openrouter", _or))
+
+    if (settings.RESEARCH_OLLAMA_URL or "").strip():
+
+        async def _ollama_fn() -> str:
+            return await _call_ollama(messages, max_tokens, temperature, settings)
+
+        providers.append(("ollama", _ollama_fn))
+
     last_error: Exception | None = None
     for name, fn in providers:
         try:
             if log_fn:
                 log_fn(f"Attempting synthesis with {name}...")
-            content = await fn(messages, max_tokens, temperature, settings)
+            content = await fn()
             if log_fn:
                 log_fn(f"Synthesis completed via {name}.")
             return content, name

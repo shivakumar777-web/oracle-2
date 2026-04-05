@@ -11,13 +11,18 @@ WORKDIR /app
 
 ENV PIP_DEFAULT_TIMEOUT=300
 
-COPY requirements-api.txt .
+COPY oracle-2/requirements-api.txt .
 RUN pip install --no-cache-dir -r requirements-api.txt
 
-# Copy source files
-COPY orchestrator.py .
-COPY api.py .
-COPY services/shared/ ./services/shared/
+COPY packages/manthana-inference /tmp/manthana-inference
+RUN pip install --no-cache-dir /tmp/manthana-inference
+
+COPY config/cloud_inference.yaml /app/config/cloud_inference.yaml
+COPY oracle-2/orchestrator.py .
+COPY oracle-2/api.py .
+COPY oracle-2/services/shared/ ./services/shared/
+
+ENV CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s \
@@ -33,4 +38,3 @@ CMD ["uvicorn", "api:app", \
      "--port", "8001", \
      "--workers", "2", \
      "--log-level", "info"]
-

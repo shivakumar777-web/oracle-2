@@ -6,16 +6,29 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test-ses": "node --env-file=.env.local scripts/test-ses.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.750.0",
+    "@cornerstonejs/core": "^4.20.0",
+    "@cornerstonejs/dicom-image-loader": "^4.20.0",
+    "@cornerstonejs/tools": "^4.20.0",
     "better-auth": "^1.5.5",
     "better-sqlite3": "^12.8.0",
+    "d3-array": "^3.2.4",
+    "d3-interpolate": "^3.0.1",
+    "dcmjs": "^0.50.1",
+    "dicom-parser": "^1.8.21",
+    "dicomweb-client": "^0.11.2",
     "dompurify": "^3.3.3",
     "framer-motion": "^12.35.2",
+    "gl-matrix": "3.4.3",
     "next": "14.2.35",
+    "razorpay": "^2.9.6",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "swr": "^2.2.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -25,6 +38,7 @@
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
+    "file-loader": "^6.2.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"

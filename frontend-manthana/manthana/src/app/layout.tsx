@@ -78,6 +78,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("manthana_theme");if(t&&["default","blackhole","clinical"].indexOf(t)!==-1){if(t==="clinical"&&window.innerWidth<=1024)t="default";document.documentElement.dataset.theme=t}}catch(e){}})()`,
+          }}
+        />
       </head>
       <body suppressHydrationWarning>
         <LayoutShell>{children}</LayoutShell>

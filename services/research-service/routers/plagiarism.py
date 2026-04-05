@@ -340,8 +340,11 @@ async def check_originality(
     # Layer 2: Vector self-similarity
     vector_matches, _ = await _vector_layer_check(sentences)
 
-    # Layer 3: Qdrant corpus similarity
-    q_matches, q_checked = await _qdrant_corpus_layer(sentences, settings)
+    # Layer 3: Qdrant corpus similarity (optional)
+    if settings.RESEARCH_PLAGIARISM_USE_QDRANT:
+        q_matches, q_checked = await _qdrant_corpus_layer(sentences, settings)
+    else:
+        q_matches, q_checked = [], 0
 
     # Combine matches
     all_matches = web_matches + vector_matches + q_matches
@@ -361,7 +364,7 @@ async def check_originality(
         "layers": {
             "webSearch": len(web_matches),
             "internal": len(vector_matches),
-            "vectorDB": len(q_matches),
+            "vectorDB": len(vector_matches),
             "qdrantCorpus": len(q_matches),
             "qdrantScans": q_checked,
         },

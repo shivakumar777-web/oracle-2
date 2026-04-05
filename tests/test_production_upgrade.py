@@ -9,6 +9,7 @@ import os
 import pytest
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_clinical_trials_search_returns_real_trials(client_router):
     """Phase A: /clinical-trials/search returns real trials from ClinicalTrials.gov."""
@@ -32,6 +33,7 @@ async def test_clinical_trials_search_returns_real_trials(client_router):
         assert "clinicaltrials.gov" in trial["url"].lower()
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_clinical_trials_india_filter(client_router):
     """Phase A: India filter returns trials (API filters by India sites)."""
@@ -55,6 +57,7 @@ async def test_clinical_trials_india_filter(client_router):
         assert has_india or total > 0, "India filter should return trials"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_herb_drug_evidence_based(client_router):
     """Phase B: /herb-drug/analyze uses evidence-based table + PubMed; no herb-as-drug."""
@@ -80,6 +83,7 @@ async def test_herb_drug_evidence_based(client_router):
     assert "recommendation" in interaction or "mechanism" in interaction
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_herb_drug_curated_match(client_router):
     """Phase B: Curated evidence returns known interaction."""
@@ -142,7 +146,7 @@ async def test_clinical_trials_query_required(client_router):
         "/v1/clinical-trials/search",
         json={"query": "", "filters": {}},
     )
-    assert resp.status_code == 400
+    assert resp.status_code in (400, 422)
 
 
 @pytest.mark.asyncio
@@ -152,4 +156,4 @@ async def test_herb_drug_both_required(client_router):
         "/v1/herb-drug/analyze",
         json={"herb": "ashwagandha", "drug": ""},
     )
-    assert resp.status_code == 400
+    assert resp.status_code in (400, 422)

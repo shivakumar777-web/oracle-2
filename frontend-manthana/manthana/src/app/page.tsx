@@ -14,6 +14,7 @@ import type { SearchResponse, M5DomainAnswer, M5Summary, StreamSource } from "@/
 import ManthanWebResults from "@/components/ManthanWebResults";
 import { useLang } from "@/components/LangProvider";
 import { useToast } from "@/hooks/useToast";
+import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
 
 
 export default function OraclePage() {
@@ -24,6 +25,7 @@ export default function OraclePage() {
   const [mode, setMode] = useState(() => {
     const m = searchParams.get("mode");
     if (m === "analysis") return "auto";
+    if (isManthanaWebLocked() && m === "search") return "auto";
     if (m) return m;
     if (pathname.startsWith("/deep-research")) return "deep-research";
     if (searchParams.get("domain") === "m5") return "m5";
@@ -65,6 +67,15 @@ export default function OraclePage() {
   const hasMessages = messages.length > 0;
   const { lang } = useLang();
   const { addToast } = useToast();
+  const webLocked = isManthanaWebLocked();
+
+  // Deep link ?mode=search while Web is locked → dedicated Coming Soon route
+  useEffect(() => {
+    if (!webLocked) return;
+    if (searchParams.get("mode") === "search") {
+      router.replace("/search");
+    }
+  }, [webLocked, searchParams, router]);
 
   const modeLabel = (m: string) => {
     if (m === "deep-research") return "MED DEEP RESEARCH";
@@ -197,6 +208,11 @@ export default function OraclePage() {
     setMessages((prev) => [...prev, userMsg]);
     // Mode-specific behavior
     if (mode === "search") {
+      if (webLocked) {
+        router.push("/search");
+        setMessages((prev) => prev.slice(0, -1));
+        return;
+      }
       setIsThinking(true);
       setSearchResults(null);
       try {
@@ -367,7 +383,7 @@ export default function OraclePage() {
                     : m
                 )
               );
-            } else {
+            } else if (!webLocked) {
               const rawData = await fetchSearchWithSources(
                 trimmed,
                 activeDomain,
@@ -393,6 +409,12 @@ export default function OraclePage() {
                         verified: true,
                       }
                     : m
+                )
+              );
+            } else {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, content, streaming: false } : m
                 )
               );
             }
@@ -469,6 +491,10 @@ export default function OraclePage() {
 
   const handleAction = (action: string) => {
     if (action === "Medical Web Search") {
+      if (webLocked) {
+        router.push("/search");
+        return;
+      }
       setActiveDomain("allopathy");
       setMode("search");
       setQuery("Latest type 2 diabetes treatment guidelines 2024");
@@ -509,6 +535,10 @@ export default function OraclePage() {
     }
 
     if (action === "Find Clinical Trial") {
+      if (webLocked) {
+        router.push("/search");
+        return;
+      }
       const starter =
         "Find ongoing clinical trials for diabetes treatment in India.";
       setActiveDomain("allopathy");
@@ -552,6 +582,10 @@ export default function OraclePage() {
   const handleModeChange = (newMode: string) => {
     if (newMode === "deep-research") {
       router.push("/deep-research");
+      return;
+    }
+    if (newMode === "search" && webLocked) {
+      router.push("/search");
       return;
     }
     if (newMode === "m5") {
@@ -641,7 +675,7 @@ export default function OraclePage() {
 
           {/* Quick Actions */}
           <div className="mt-4 w-full">
-            <QuickActionGrid onAction={handleAction} />
+            <QuickActionGrid onAction={handleAction} manthanaWebLocked={webLocked} />
           </div>
 
           {/* ═══ PHILOSOPHY SECTION ═══ */}
@@ -838,6 +872,7 @@ export default function OraclePage() {
           onChange={setQuery}
           onSubmit={handleSubmit}
           mode={mode}
+          manthanaWebLocked={webLocked}
           domain={activeDomain}
           intensity={intensity}
           persona={persona}

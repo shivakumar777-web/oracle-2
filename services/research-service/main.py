@@ -95,8 +95,30 @@ async def lifespan(app: FastAPI):
     logger.info(
         f"Research Service v{settings.SERVICE_VERSION} initialized | "
         f"Plagiarism: {settings.RESEARCH_ENABLE_PLAGIARISM} | "
-        f"Citations: {settings.RESEARCH_ENABLE_CITATIONS}"
+        f"Citations: {settings.RESEARCH_ENABLE_CITATIONS} | "
+        f"Legacy RAG: {settings.RESEARCH_USE_LEGACY_RAG}"
     )
+    if not settings.RESEARCH_USE_LEGACY_RAG:
+        try:
+            from hybrid_research import check_searxng_reachable, hybrid_ready
+
+            ok, reason = hybrid_ready(settings)
+            if ok and (settings.SEARXNG_URL or "").strip():
+                reachable = await check_searxng_reachable((settings.SEARXNG_URL or "").strip())
+                logger.info(
+                    "Hybrid deep research: ready=%s reason=%s searxng_reachable=%s",
+                    ok,
+                    reason,
+                    reachable,
+                )
+            else:
+                logger.warning(
+                    "Hybrid deep research enabled but not ready: %s (searx=%r)",
+                    reason,
+                    settings.SEARXNG_URL,
+                )
+        except Exception as e:
+            logger.warning("Hybrid deep research startup check failed: %s", e)
 
     yield
 

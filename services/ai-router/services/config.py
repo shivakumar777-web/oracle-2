@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # URL of the frontend where Better Auth runs (for JWKS: {BETTER_AUTH_URL}/api/auth/jwks)
     BETTER_AUTH_URL: str = "http://localhost:3001"
 
+    # ── OpenRouter (cloud LLM; models from repo config/cloud_inference.yaml) ──
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_API_KEY_2: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

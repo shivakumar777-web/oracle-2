@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
+import SubscriptionCard from "./SubscriptionCard";
 
 const PROFESSION_OPTIONS = ["Doctor", "Researcher", "Student", "Patient", "Pharmacist"];
 
@@ -210,6 +212,23 @@ export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
   const [defaultMode, setDefaultMode] = useState("auto");
   const [openSection, setOpenSection] = useState<string | null>("interface");
 
+  const defaultModeOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [
+      { value: "auto", label: "Auto" },
+    ];
+    if (!isManthanaWebLocked()) {
+      opts.push({ value: "search", label: "Manthana Web" });
+    }
+    opts.push({ value: "deep-research", label: "Med Deep Research" });
+    return opts;
+  }, []);
+
+  useEffect(() => {
+    if (isManthanaWebLocked() && defaultMode === "search") {
+      setDefaultMode("auto");
+    }
+  }, [defaultMode]);
+
   const toggleSection = (id: string) =>
     setOpenSection((prev) => (prev === id ? null : id));
 
@@ -307,11 +326,7 @@ export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
             <Row label="Default Mode">
               <Dropdown
                 value={defaultMode}
-                options={[
-                  { value: "auto", label: "Auto" },
-                  { value: "search", label: "Manthana Web" },
-                  { value: "deep-research", label: "Med Deep Research" },
-                ]}
+                options={defaultModeOptions}
                 onChange={setDefaultMode}
               />
             </Row>
@@ -427,28 +442,7 @@ export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
             isOpen={openSection === "subscription"}
             onToggle={() => toggleSection("subscription")}
           >
-            <div className="flex items-center gap-3">
-              <span className="font-ui text-[10px] tracking-[0.3em] uppercase text-gold-h px-4 py-1.5
-                rounded-full border border-gold/30 bg-gold/[0.08]">
-                PRO
-              </span>
-              <div>
-                <span className="font-body text-xs text-cream/40 block">Active plan</span>
-                <span className="font-ui text-[9px] text-cream/15">Renews April 2026</span>
-              </div>
-            </div>
-            <div className="bg-white/[0.02] rounded-lg p-4 border border-white/[0.04]">
-              <div className="flex justify-between mb-2">
-                <span className="font-ui text-[10px] text-cream/35">Monthly queries</span>
-                <span className="font-ui text-[10px] text-gold/70">1,247 / 5,000</span>
-              </div>
-              <div className="h-2 bg-white/[0.04] rounded-full overflow-hidden">
-                <div className="h-full w-[25%] bg-gradient-to-r from-gold-d to-gold-h rounded-full
-                  shadow-sm shadow-gold/20" />
-              </div>
-              <p className="font-ui text-[9px] text-cream/15 mt-2">3,753 queries remaining</p>
-            </div>
-            <button className="btn-gold w-full text-xs py-2.5">Upgrade Plan</button>
+            <SubscriptionCard />
           </Section>
 
           {/* 6. About */}

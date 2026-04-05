@@ -32,25 +32,11 @@ class ResearchSettings(BaseSettings):
     API_PREFIX: str = Field(default="/v1")
 
     # ══════════════════════════════════════════════════════════════════
-    #  LLM CONFIGURATION
+    #  LLM CONFIGURATION (OpenRouter + optional Ollama)
     # ══════════════════════════════════════════════════════════════════
 
-    RESEARCH_GROQ_API_KEY: str = Field(
-        default="",
-        description="Groq API key for research synthesis.",
-    )
-    RESEARCH_GROQ_MODEL: str = Field(
-        default="llama-3.3-70b-versatile",
-        description="Groq model for research tasks.",
-    )
-    RESEARCH_OPENAI_API_KEY: str = Field(
-        default="",
-        description="OpenAI API key for synthesis fallback.",
-    )
-    RESEARCH_OPENAI_FALLBACK_MODEL: str = Field(
-        default="gpt-4o-mini",
-        description="OpenAI chat model when Groq fails.",
-    )
+    OPENROUTER_API_KEY: str = Field(default="", description="OpenRouter API key.")
+    OPENROUTER_API_KEY_2: str = Field(default="", description="Optional second OpenRouter key.")
     RESEARCH_OLLAMA_URL: str = Field(
         default="",
         description="Ollama base URL for synthesis fallback (e.g. http://ollama:11434).",
@@ -167,6 +153,31 @@ class ResearchSettings(BaseSettings):
     RESEARCH_MAX_SOURCES: int = Field(
         default=12,
         description="Maximum sources to search.",
+    )
+
+    RESEARCH_USE_LEGACY_RAG: bool = Field(
+        default=True,
+        description="If True, use Meilisearch/Qdrant/Perplexica/SearXNG legacy pipeline. If False, use GPT Researcher + SearXNG hybrid path.",
+    )
+    RESEARCH_HYBRID_MAX_STEPS: int = Field(
+        default=0,
+        description="If >0, overrides MAX_ITERATIONS for GPT Researcher (hybrid). 0 = derive from depth.",
+    )
+    RESEARCH_HYBRID_TIMEOUT_SECONDS: float = Field(
+        default=0.0,
+        description="If >0, hard cap for hybrid GR+graph wall time (seconds). 0 = use target_seconds/depth only.",
+    )
+    RESEARCH_GR_LLM: str = Field(
+        default="openrouter:deepseek/deepseek-chat",
+        description="GPT Researcher LLM string provider:model (e.g. openrouter:deepseek/deepseek-chat).",
+    )
+    RESEARCH_GR_EMBEDDING: str = Field(
+        default="openrouter:openai/text-embedding-3-small",
+        description="GPT Researcher EMBEDDING env value provider:model.",
+    )
+    RESEARCH_PLAGIARISM_USE_QDRANT: bool = Field(
+        default=True,
+        description="If False, plagiarism skips Qdrant corpus layer (web + vector self-similarity only).",
     )
 
     # ══════════════════════════════════════════════════════════════════

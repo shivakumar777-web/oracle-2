@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Logo from "./Logo";
+import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
 
 const STEPS = [
   {
@@ -34,6 +35,18 @@ const STEPS = [
   },
 ];
 
+function onboardingSteps() {
+  if (!isManthanaWebLocked()) return STEPS;
+  return STEPS.filter((s) => s.key !== "search").map((s) =>
+    s.key === "modes"
+      ? {
+          ...s,
+          body: "Dedicated imaging workflows are not enabled in this build. Use Manthana Oracle and Med Deep Research for conversation and structured research. Manthana Web—multi-source medical search—is being refined and will return soon.",
+        }
+      : s,
+  );
+}
+
 interface OnboardingProps {
   onComplete: () => void;
 }
@@ -41,13 +54,14 @@ interface OnboardingProps {
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const steps = useMemo(() => onboardingSteps(), []);
 
   useEffect(() => { setMounted(true); }, []);
 
   if (!mounted) return null;
 
-  const current = STEPS[step];
-  const isLast = step === STEPS.length - 1;
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md">
@@ -76,7 +90,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
         {/* Step dots */}
         <div className="flex justify-center gap-2 mb-8">
-          {STEPS.map((_, i) => (
+          {steps.map((_, i) => (
             <div key={i} className={`h-0.5 rounded-full transition-all duration-500
               ${i === step ? "w-8 bg-gold" : "w-3 bg-white/10"}`} />
           ))}

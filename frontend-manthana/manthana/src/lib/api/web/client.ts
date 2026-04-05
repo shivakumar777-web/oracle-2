@@ -6,6 +6,18 @@
 import { fetchWithAuth } from "../core/client";
 import { ApiError } from "../core/errors";
 import { WEB_BASE } from "../config";
+import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
+
+/** Block outbound Manthana Web API calls when the product surface is feature-flagged off. */
+function assertWebApiAllowed(): void {
+  if (isManthanaWebLocked()) {
+    throw new ApiError(
+      "Manthana Web is paused while we refine the experience.",
+      503,
+      "web_locked"
+    );
+  }
+}
 import type {
   SearchResult,
   ImageResult,
@@ -74,6 +86,7 @@ export async function searchMedical(
   query: string,
   options?: { category?: string; page?: number; lang?: string }
 ): Promise<SearchResponse> {
+  assertWebApiAllowed();
   try {
     const params = new URLSearchParams({
       q: query,
@@ -136,6 +149,7 @@ export async function fetchSearchWithSources(
   category: string,
   lang: string
 ): Promise<SearchSourcesResponse> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     category,
@@ -154,6 +168,7 @@ export async function fetchSearchWithSources(
 export async function getTrending(
   timeframe: "hour" | "day" | "week" = "day"
 ): Promise<{ query: string; count: number }[]> {
+  assertWebApiAllowed();
   const res = await fetchWithAuth(`${WEB_BASE}/trending?timeframe=${timeframe}`);
   if (!res.ok) return [];
   const data = await res.json();
@@ -169,6 +184,7 @@ export async function recordClick(
   resultUrl: string,
   position: number
 ): Promise<void> {
+  if (isManthanaWebLocked()) return;
   try {
     await fetchWithAuth(`${WEB_BASE}/feedback`, {
       method: "POST",
@@ -191,6 +207,7 @@ export async function searchImages(
   query: string,
   options?: { page?: number }
 ): Promise<{ query: string; images: ImageResult[]; total: number; page: number; totalPages?: number; hasNextPage?: boolean; hasPrevPage?: boolean }> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     page: String(options?.page ?? 1),
@@ -219,6 +236,7 @@ export async function searchVideos(
   query: string,
   options?: { page?: number }
 ): Promise<{ query: string; videos: VideoResult[]; total: number; page: number; totalPages?: number; hasNextPage?: boolean; hasPrevPage?: boolean }> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     page: String(options?.page ?? 1),
@@ -282,6 +300,7 @@ export async function searchPapers(
   query: string,
   options?: { page?: number; sort?: string }
 ): Promise<SearchResponse> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     page: String(options?.page ?? 1),
@@ -300,6 +319,7 @@ export async function searchGuidelines(
   query: string,
   options?: { page?: number; org?: string }
 ): Promise<SearchResponse> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     page: String(options?.page ?? 1),
@@ -318,6 +338,7 @@ export async function searchTrials(
   query: string,
   options?: { page?: number; pageToken?: string; status?: string; phase?: string }
 ): Promise<SearchResponse> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     page: String(options?.page ?? 1),
@@ -338,6 +359,7 @@ export async function searchPdfs(
   query: string,
   options?: { page?: number }
 ): Promise<SearchResponse> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     page: String(options?.page ?? 1),
@@ -355,6 +377,7 @@ export async function searchArticles(
   query: string,
   options?: { category?: string; page?: number; lang?: string }
 ): Promise<SearchResponse> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q: query,
     category: options?.category ?? "allopathy",
@@ -374,6 +397,7 @@ export async function searchArticles(
 export async function getSearchHistory(
   limit: number = 50
 ): Promise<{ query: string; category: string; timestamp: string | null }[]> {
+  assertWebApiAllowed();
   const res = await fetchWithAuth(`${WEB_BASE}/history?limit=${limit}`);
   if (!res.ok) return [];
   const data = await res.json();
@@ -389,6 +413,7 @@ export async function searchAutocomplete(
   category: string,
   lang: string
 ): Promise<string[]> {
+  assertWebApiAllowed();
   const params = new URLSearchParams({
     q,
     category,
@@ -415,6 +440,7 @@ export async function fetchKnowledgeSummary(
   entity: string,
   domain: string = "allopathy"
 ): Promise<KnowledgeSummary | null> {
+  assertWebApiAllowed();
   try {
     const params = new URLSearchParams({ entity, domain });
     const res = await fetchWithAuth(`${WEB_BASE}/knowledge/summary?${params.toString()}`);

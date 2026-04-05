@@ -96,17 +96,14 @@ class WebSettings(BaseSettings):
     )
 
     # ══════════════════════════════════════════════════════════════════
-    #  KNOWLEDGE PANEL AI (Phase 12)
+    #  KNOWLEDGE PANEL AI (OpenRouter — role web_knowledge in cloud_inference.yaml)
     # ══════════════════════════════════════════════════════════════════
 
-    WEB_GROQ_API_KEY: Optional[str] = Field(
+    OPENROUTER_API_KEY: Optional[str] = Field(
         default=None,
-        description="Groq API key for Knowledge Panel AI summary (optional).",
+        description="OpenRouter API key for Knowledge Panel AI summary (optional).",
     )
-    WEB_GROQ_MODEL: str = Field(
-        default="llama-3.3-70b-versatile",
-        description="Groq model for knowledge summaries.",
-    )
+    OPENROUTER_API_KEY_2: Optional[str] = Field(default=None, description="Optional second OpenRouter key.")
     WEB_KNOWLEDGE_CACHE_TTL: int = Field(
         default=86400,
         description="Knowledge summary cache TTL in seconds (24h default).",
@@ -166,6 +163,10 @@ class WebSettings(BaseSettings):
     WEB_ENABLE_RELATED_QUESTIONS: bool = Field(
         default=True,
         description="Generate related questions for queries.",
+    )
+    WEB_FEATURE_LOCKED: bool = Field(
+        default=False,
+        description="When true, GET /search returns 503 with status=locked (Manthana Web paused).",
     )
 
     # ══════════════════════════════════════════════════════════════════

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,24 +36,40 @@ class OracleSettings(BaseSettings):
     API_PREFIX: str = Field(default="/v1")
 
     # ══════════════════════════════════════════════════════════════════
-    #  LLM CONFIGURATION
+    #  LLM CONFIGURATION (OpenRouter — models in config/cloud_inference.yaml)
     # ══════════════════════════════════════════════════════════════════
 
-    ORACLE_GROQ_API_KEY: str = Field(
+    OPENROUTER_API_KEY: str = Field(
         default="",
-        description="Primary Groq API key for LLM inference.",
+        description="OpenRouter API key (also read from process env).",
     )
-    ORACLE_GROQ_API_KEY_2: str = Field(
+    OPENROUTER_API_KEY_2: str = Field(
         default="",
-        description="Secondary Groq API key (used when primary hits rate limit).",
+        description="Optional second OpenRouter key for rate-limit rotation.",
     )
-    ORACLE_GROQ_MODEL: str = Field(
-        default="llama-3.3-70b-versatile",
-        description="Primary Groq model for chat completions.",
+    ORACLE_OPENROUTER_API_KEY: str = Field(
+        default="",
+        description="Oracle-prefixed OpenRouter key (same as OPENROUTER_API_KEY if you prefer ORACLE_* in compose).",
     )
-    ORACLE_FALLBACK_ENABLED: bool = Field(
-        default=False,
-        description="Enable fallback to secondary Groq key when primary fails.",
+    ORACLE_OPENROUTER_API_KEY_2: str = Field(
+        default="",
+        description="Optional second Oracle OpenRouter key for rotation.",
+    )
+    ORACLE_OPENROUTER_BASE_URL: str = Field(
+        default="",
+        description="Override OpenRouter base URL; empty uses config/cloud_inference.yaml.",
+    )
+    ORACLE_OPENROUTER_MODEL: str = Field(
+        default="",
+        description="Override model for oracle_chat role; empty uses cloud_inference.yaml.",
+    )
+    ORACLE_OPENROUTER_MODEL_M5: str = Field(
+        default="",
+        description="Override model for oracle_m5 role; empty uses cloud_inference.yaml or ORACLE_OPENROUTER_MODEL.",
+    )
+    ORACLE_LLM_PROVIDER: Literal["openrouter"] = Field(
+        default="openrouter",
+        description="Oracle chat/M5 use OpenRouter only. (Legacy groq is not supported; do not set.)",
     )
 
     # ══════════════════════════════════════════════════════════════════
@@ -126,6 +142,10 @@ class OracleSettings(BaseSettings):
     ORACLE_ENABLE_DOMAIN_INTELLIGENCE: bool = Field(
         default=True,
         description="Enable domain detection and expansion.",
+    )
+    ORACLE_USE_RAG: bool = Field(
+        default=False,
+        description="When true, run Meili/Qdrant/embeddings/SearXNG/PubMed/trials for chat/M5.",
     )
 
     # ══════════════════════════════════════════════════════════════════

@@ -43,9 +43,14 @@ const ACTIONS = [
 
 interface QuickActionGridProps {
   onAction: (action: string) => void;
+  /** When true, Web-oriented cards show “refining” copy but keep the same action ids */
+  manthanaWebLocked?: boolean;
 }
 
-export default function QuickActionGrid({ onAction }: QuickActionGridProps) {
+export default function QuickActionGrid({
+  onAction,
+  manthanaWebLocked = false,
+}: QuickActionGridProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto px-4 stagger-rise">
       {ACTIONS.map((action) => (
@@ -69,7 +74,11 @@ export default function QuickActionGrid({ onAction }: QuickActionGridProps) {
             {action.title}
           </h3>
           <p className="font-body text-xs text-cream/35 leading-relaxed">
-            {action.desc}
+            {manthanaWebLocked && action.title === "Medical Web Search"
+              ? "Manthana Web is being refined—tap to see what’s next, then continue with Oracle."
+              : manthanaWebLocked && action.title === "Find Clinical Trial"
+                ? "Trial discovery through Web search is paused—tap for details, or ask Oracle for trial questions."
+                : action.desc}
           </p>
         </button>
       ))}

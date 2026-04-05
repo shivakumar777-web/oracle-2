@@ -541,6 +541,16 @@ def create_search_router(limiter) -> APIRouter:
     ):
         """Medical web search with trust scoring. Pure search — NO AI."""
         rid = getattr(request.state, "request_id", "unknown")
+        if settings.WEB_FEATURE_LOCKED:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "locked",
+                    "message": (
+                        "Manthana Web search is paused while we refine multi-source medical search."
+                    ),
+                },
+            )
         start_time = time.time()
 
         redis_client = getattr(request.app.state, "redis", None)

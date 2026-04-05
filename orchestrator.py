@@ -8,7 +8,7 @@ Pipeline:
   2. Web search via SearXNG → ranked external results
   3. Crawl top URLs (Crawl4AI fast → Firecrawl deep fallback)
   4. Index crawled content into ES + Qdrant + Meilisearch
-  5. AI synthesis via Groq (llama-3.3-70b-versatile)
+  5. AI synthesis via OpenRouter (see config/cloud_inference.yaml)
 
 All functions are async. The module maintains a shared ``httpx.AsyncClient``
 for connection pooling and a lazy-initialised Groq client.
@@ -45,7 +45,6 @@ ELASTICSEARCH = os.getenv("ELASTICSEARCH_URL",  "http://elasticsearch:9200")
 MEILISEARCH   = os.getenv("MEILISEARCH_URL",    "http://meilisearch:7700")
 MEILI_KEY     = os.getenv("MEILI_MASTER_KEY",   "")
 EMBED_MODEL   = os.getenv("EMBEDDING_MODEL",    "nomic-embed-text")
-GROQ_MODEL    = os.getenv("GROQ_MODEL",         "llama-3.3-70b-versatile")
 REDIS_URL     = os.getenv("REDIS_URL",          "redis://redis:6379")
 
 # ── Index names ───────────────────────────────────────────────────────
@@ -132,27 +131,6 @@ async def close_client() -> None:
         _redis_client = None
 
 
-# ═══════════════════════════════════════════════════════════════════════
-#  Groq client (lazy-initialised)
-# ═══════════════════════════════════════════════════════════════════════
-_groq_client = None
-
-
-def _get_groq():
-    """Lazy-create a Groq client (reused across calls)."""
-    global _groq_client
-    if _groq_client is None:
-        try:
-            from groq import Groq as GroqClient
-            api_key = os.getenv("GROQ_API_KEY", "")
-            if not api_key:
-                log.warning("[GROQ] No GROQ_API_KEY set — synthesis will be unavailable")
-                return None
-            _groq_client = GroqClient(api_key=api_key)
-        except ImportError:
-            log.warning("[GROQ] groq package not installed — synthesis unavailable")
-            return None
-    return _groq_client
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -480,17 +458,11 @@ Answer:"""
 
 
 async def synthesize(query: str, context: str, redis_client: Optional[Any] = None) -> str:
-    """Generate an AI-synthesized answer using Groq.
-
-    Runs the Groq SDK call in a thread executor to avoid blocking the
-    async event loop (the Groq Python client is synchronous).
-
-    Returns an empty string on any failure (graceful degradation).
-    """
-    log.info("[GROQ] Synthesizing answer for: %s", query[:80])
-    groq = _get_groq()
-    if groq is None:
-        log.warning("[GROQ] Client unavailable — skipping synthesis")
+    """Generate an AI-synthesized answer using OpenRouter (SSOT: config/cloud_inference.yaml)."""
+    log.info("[OpenRouter] Synthesizing answer for: %s", query[:80])
+    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    if not api_key:
+        log.warning("[OpenRouter] No OPENROUTER_API_KEY — skipping synthesis")
         return ""
 
     # ── Optional Redis cache lookup ────────────────────────────────────
@@ -506,10 +478,10 @@ async def synthesize(query: str, context: str, redis_client: Optional[Any] = Non
         try:
             cached = await cache_client.get(cache_key)
             if cached:
-                log.info("[GROQ] Cache HIT for synthesis key=%s", cache_key[:16])
+                log.info("[OpenRouter] Cache HIT for synthesis key=%s", cache_key[:16])
                 return cached
         except Exception as exc:
-            log.warning("[GROQ] Cache read failed: %s", exc)
+            log.warning("[OpenRouter] Cache read failed: %s", exc)
 
     prompt = _USER_PROMPT_TEMPLATE.format(
         query=query,
@@ -517,28 +489,40 @@ async def synthesize(query: str, context: str, redis_client: Optional[Any] = Non
     )
 
     def _sync_call_with_retry() -> str:
-        """Blocking Groq call with basic rate-limit retries."""
+        """Blocking OpenRouter call with basic rate-limit retries."""
         try:
-            from groq import RateLimitError  # type: ignore
+            from openai import RateLimitError  # type: ignore
         except Exception:  # pragma: no cover
             RateLimitError = Exception  # type: ignore
 
+        from pathlib import Path
+
+        from manthana_inference import (  # type: ignore
+            build_openrouter_sync_client,
+            chat_complete_sync,
+            load_cloud_inference_config,
+        )
+
+        cfg_path = (os.getenv("CLOUD_INFERENCE_CONFIG_PATH") or "").strip()
+        cfg = load_cloud_inference_config(Path(cfg_path) if cfg_path else None)
+        client = build_openrouter_sync_client(api_key, cfg)
+        messages = [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
         backoffs = [2, 4, 8]
         for attempt, delay in enumerate(backoffs, start=1):
             try:
-                completion = groq.chat.completions.create(
-                    model=GROQ_MODEL,
-                    messages=[
-                        {"role": "system", "content": _SYSTEM_PROMPT},
-                        {"role": "user", "content": prompt},
-                    ],
-                    max_completion_tokens=1024,
-                    temperature=0.1,
+                text, _model = chat_complete_sync(
+                    client,
+                    cfg,
+                    "orchestrator_synthesis",
+                    messages,
                 )
-                return completion.choices[0].message.content or ""
+                return text or ""
             except RateLimitError as exc:  # type: ignore[misc]
                 log.warning(
-                    "[GROQ] Rate limit on attempt %d/%d, sleeping %ss: %s",
+                    "[OpenRouter] Rate limit on attempt %d/%d, sleeping %ss: %s",
                     attempt,
                     len(backoffs),
                     delay,
@@ -546,23 +530,23 @@ async def synthesize(query: str, context: str, redis_client: Optional[Any] = Non
                 )
                 time.sleep(delay)
             except Exception as exc:
-                log.error("[GROQ] Synthesis error (non-rate-limit): %s", exc)
+                log.error("[OpenRouter] Synthesis error (non-rate-limit): %s", exc)
                 return ""
 
-        log.error("[GROQ] Exhausted retries due to rate limits")
+        log.error("[OpenRouter] Exhausted retries due to rate limits")
         return ""
 
-    # Run blocking Groq SDK call in the default thread executor
+    # Run blocking OpenRouter SDK call in the default thread executor
     loop = asyncio.get_running_loop()
     answer = await loop.run_in_executor(None, _sync_call_with_retry)
     if answer:
-        log.info("[GROQ] Answer generated (%d chars)", len(answer))
+        log.info("[OpenRouter] Answer generated (%d chars)", len(answer))
         if cache_client is not None:
             try:
                 await cache_client.setex(cache_key, 3600, answer)
-                log.info("[GROQ] Cached synthesis result key=%s ttl=3600", cache_key[:16])
+                log.info("[OpenRouter] Cached synthesis result key=%s ttl=3600", cache_key[:16])
             except Exception as exc:
-                log.warning("[GROQ] Cache write failed: %s", exc)
+                log.warning("[OpenRouter] Cache write failed: %s", exc)
     return answer
 
 

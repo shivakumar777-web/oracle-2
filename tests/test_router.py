@@ -64,7 +64,7 @@ async def test_router_search(client_router):
 @pytest.mark.asyncio
 async def test_plagiarism_check(client_router):
     """POST /plagiarism/check with mocked check_originality."""
-    with patch("ai_router_main.check_originality", new_callable=AsyncMock) as m:
+    with patch("routers.plagiarism.check_originality", new_callable=AsyncMock) as m:
         m.return_value = {
             "originalityScore": 92,
             "matches": [],
@@ -215,8 +215,8 @@ async def test_search_autocomplete_empty_on_error(client_router, respx_mock):
 @pytest.mark.asyncio
 async def test_report_enrich_e2e(client_router):
     """POST /v1/report/enrich returns envelope with ICD-10/RadLex."""
-    with patch("ai_router_main._call_ollama_chat", new_callable=AsyncMock) as m_ollama:
-        m_ollama.return_value = '{"impression": "Pleural effusion. Correlate clinically.", "differential": {"pleural effusion": ["CHF", "Pneumonia", "Malignancy"]}, "triage_level": "ROUTINE"}'
+    with patch("ai_router_main._call_groq_chat", new_callable=AsyncMock) as m_llm:
+        m_llm.return_value = '{"impression": "Pleural effusion. Correlate clinically.", "differential": {"pleural effusion": ["CHF", "Pneumonia", "Malignancy"]}, "triage_level": "ROUTINE"}'
         resp = await client_router.post(
             "/v1/report/enrich",
             json={
@@ -328,8 +328,8 @@ async def test_query_endpoint(client_router, respx_mock):
     respx_mock.route(method="POST", url__regex=r".*/api/chat").mock(
         return_value=HttpxResponse(200, json={"message": {"content": "Ollama synthesized answer."}})
     )
-    with patch("ai_router_main._call_ollama_chat", new_callable=AsyncMock) as m_ollama:
-        m_ollama.return_value = "Ollama synthesized answer for the medical query."
+    with patch("ai_router_main._call_groq_chat", new_callable=AsyncMock) as m_llm:
+        m_llm.return_value = "Ollama synthesized answer for the medical query."
         resp = await client_router.post(
             "/v1/query",
             json={"question": "What is diabetes?", "context": ""},

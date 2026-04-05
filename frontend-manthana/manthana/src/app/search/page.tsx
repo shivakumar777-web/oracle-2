@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import ManthanaWebComingSoon from "@/components/ManthanaWebComingSoon";
+import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
 import Logo from "@/components/Logo";
 import {
   searchMedical,
@@ -1064,6 +1066,15 @@ function SearchSessionView({ initialQuery, onWorkspaceQueryChange }: SearchSessi
 /** Workspace: multiple in-app sessions (swipe chip to close on mobile) + browser new tab (+). */
 export default function SearchPage() {
   const searchParams = useSearchParams();
+
+  if (isManthanaWebLocked()) {
+    return (
+      <div className="min-h-[calc(100dvh-10rem)] flex flex-col">
+        <ManthanaWebComingSoon variant="full" />
+      </div>
+    );
+  }
+
   const initialQ = searchParams?.get("q") ?? "";
   const [tabs, setTabs] = useState<{ id: string; q: string }[]>(() => [{ id: "ws-1", q: initialQ }]);
   const [active, setActive] = useState("ws-1");

@@ -3,12 +3,13 @@
 import React from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
 
 const TABS = [
   { href: "/", icon: "✦", label: "Oracle" },
   { href: "/search", icon: "⌕", label: "Web" },
   { href: "/deep-research", icon: "🔬", label: "Research" },
-  { href: null, icon: "◎", label: "Manthana Analyse", placeholder: true as const },
+  { href: "/analyse", icon: "◎", label: "Manthana Analyse" },
   { href: "#history", icon: "◷", label: "History" },
   { href: "#settings", icon: "⚙", label: "Settings" },
 ] as const;
@@ -19,6 +20,7 @@ interface BottomNavProps {
 
 export default function BottomNav({ onOverlayOpen }: BottomNavProps) {
   const pathname = usePathname();
+  const webLocked = isManthanaWebLocked();
 
   return (
     <nav
@@ -74,7 +76,18 @@ export default function BottomNav({ onOverlayOpen }: BottomNavProps) {
           }
 
           return (
-            <Link key={tab.label} href={tab.href!} aria-label={tab.label}>
+            <Link
+              key={tab.label}
+              href={tab.href!}
+              aria-label={
+                tab.href === "/search" && webLocked ? "Web, coming soon" : tab.label
+              }
+              title={
+                tab.href === "/search" && webLocked
+                  ? "Manthana Web — refined experience coming soon"
+                  : undefined
+              }
+            >
               {content}
             </Link>
           );

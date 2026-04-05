@@ -216,12 +216,13 @@ def circuit(
 #  SERVICE-SPECIFIC CIRCUIT BREAKERS
 # ═══════════════════════════════════════════════════════════════════════
 
-# Oracle service - stricter (LLM is expensive)
-oracle_groq_circuit = get_circuit_breaker(
-    "oracle_groq",
+# Oracle service - stricter (LLM is expensive); OpenRouter-backed chat/M5
+oracle_openrouter_circuit = get_circuit_breaker(
+    "oracle_openrouter",
     failure_threshold=3,
     recovery_timeout=60.0,
 )
+oracle_groq_circuit = oracle_openrouter_circuit  # deprecated alias, same breaker instance
 
 oracle_ollama_circuit = get_circuit_breaker(
     "oracle_ollama",

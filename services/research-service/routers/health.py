@@ -9,6 +9,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from hybrid_research import check_searxng_reachable, hybrid_dependencies_available, hybrid_ready
+
 
 def create_health_router() -> APIRouter:
     """Create health check router."""
@@ -32,14 +34,24 @@ def create_health_router() -> APIRouter:
             else:
                 redis_status = "disconnected"
 
-        # Check Groq
-        groq_configured = bool(settings.RESEARCH_GROQ_API_KEY and len(settings.RESEARCH_GROQ_API_KEY) > 20)
+        import os
+
+        or_key = (settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+        openrouter_configured = bool(or_key and len(or_key) >= 8)
 
         db_status = "not_configured"
         if getattr(request.app.state, "db_session_factory", None):
             db_status = "connected"
 
-        overall_status = "healthy" if groq_configured else "degraded"
+        overall_status = "healthy" if openrouter_configured else "degraded"
+
+        hr_ok, hr_reason = hybrid_ready(settings)
+        searx_reachable = False
+        if (settings.SEARXNG_URL or "").strip():
+            try:
+                searx_reachable = await check_searxng_reachable((settings.SEARXNG_URL or "").strip())
+            except Exception:
+                searx_reachable = False
 
         return JSONResponse(
             status_code=200,
@@ -50,8 +62,8 @@ def create_health_router() -> APIRouter:
                 "data": {
                     "status": overall_status,
                     "llm": {
-                        "configured": groq_configured,
-                        "model": settings.RESEARCH_GROQ_MODEL if groq_configured else None,
+                        "configured": openrouter_configured,
+                        "provider": "openrouter" if openrouter_configured else None,
                     },
                     "cache": {
                         "type": "redis" if settings.RESEARCH_REDIS_URL else "none",
@@ -68,6 +80,15 @@ def create_health_router() -> APIRouter:
                         "plagiarism": settings.RESEARCH_ENABLE_PLAGIARISM,
                         "originality": settings.RESEARCH_ENABLE_ORIGINALITY,
                         "citations": settings.RESEARCH_ENABLE_CITATIONS,
+                    },
+                    "hybrid_deep_research": {
+                        "use_legacy_rag": settings.RESEARCH_USE_LEGACY_RAG,
+                        "hybrid_ready": hr_ok,
+                        "hybrid_reason": hr_reason,
+                        "gpt_researcher_import_ok": hybrid_dependencies_available(),
+                        "web_retriever": "searx",
+                        "searxng_reachable": searx_reachable,
+                        "searxng_url": settings.SEARXNG_URL,
                     },
                 },
                 "error": None,

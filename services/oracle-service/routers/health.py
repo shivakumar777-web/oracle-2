@@ -6,6 +6,7 @@ Health check endpoints for Oracle service with circuit breaker status.
 
 from __future__ import annotations
 
+import os
 import sys
 from typing import Any, Dict
 
@@ -16,7 +17,12 @@ from fastapi.responses import JSONResponse
 PROJECT_ROOT = "/opt/manthana"
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
-from services.shared.circuit_breaker import oracle_groq_circuit, oracle_ollama_circuit, get_all_circuit_stats
+from services.shared.circuit_breaker import (
+    oracle_groq_circuit,
+    oracle_openrouter_circuit,
+    oracle_ollama_circuit,
+    get_all_circuit_stats,
+)
 
 
 def create_health_router() -> APIRouter:
@@ -28,8 +34,12 @@ def create_health_router() -> APIRouter:
         """Oracle service health check with circuit breaker status."""
         settings = request.app.state.settings
 
-        # Check Groq availability (without making actual API call)
-        groq_configured = bool(settings.ORACLE_GROQ_API_KEY)
+        openrouter_configured = bool(
+            (settings.OPENROUTER_API_KEY or "").strip()
+            or (getattr(settings, "ORACLE_OPENROUTER_API_KEY", None) or "").strip()
+            or (os.environ.get("OPENROUTER_API_KEY") or "").strip()
+            or (os.environ.get("ORACLE_OPENROUTER_API_KEY") or "").strip()
+        )
 
         # Check Redis if configured
         redis_status = "not_configured"
@@ -44,17 +54,18 @@ def create_health_router() -> APIRouter:
             else:
                 redis_status = "disconnected"
 
-        # Circuit breaker status
+        # Circuit breaker status (oracle_groq is a deprecated alias for oracle_openrouter)
         circuit_stats = {
+            "oracle_openrouter": oracle_openrouter_circuit.get_stats(),
             "oracle_groq": oracle_groq_circuit.get_stats(),
             "oracle_ollama": oracle_ollama_circuit.get_stats(),
         }
 
         # Determine overall status
         overall_status = "healthy"
-        if not groq_configured:
+        if not openrouter_configured:
             overall_status = "degraded"
-        if oracle_groq_circuit.state.value == "open" and oracle_ollama_circuit.state.value == "open":
+        if oracle_openrouter_circuit.state.value == "open" and oracle_ollama_circuit.state.value == "open":
             overall_status = "unhealthy"
 
         return JSONResponse(
@@ -66,11 +77,11 @@ def create_health_router() -> APIRouter:
                 "data": {
                     "status": overall_status,
                     "llm": {
-                        "primary": "groq" if groq_configured else "not_configured",
-                        "fallback": settings.ORACLE_FALLBACK_MODEL if settings.ORACLE_FALLBACK_ENABLED else "disabled",
-                        "configured": groq_configured,
+                        "primary": "openrouter" if openrouter_configured else "not_configured",
+                        "configured": openrouter_configured,
                         "circuits": {
-                            "groq": oracle_groq_circuit.state.value,
+                            "openrouter": oracle_openrouter_circuit.state.value,
+                            "llm": oracle_openrouter_circuit.state.value,
                             "ollama": oracle_ollama_circuit.state.value,
                         },
                     },
@@ -83,6 +94,7 @@ def create_health_router() -> APIRouter:
                         "trials": settings.ORACLE_ENABLE_TRIALS,
                         "pubmed": settings.ORACLE_ENABLE_PUBMED,
                         "domain_intelligence": settings.ORACLE_ENABLE_DOMAIN_INTELLIGENCE,
+                        "use_rag": getattr(settings, "ORACLE_USE_RAG", False),
                     },
                     "circuits": circuit_stats,
                 },

@@ -52,6 +52,8 @@ interface SearchBarProps {
   onSubmit: (val: string) => void;
   onAttach?: () => void;
   mode?: string;
+  /** When true, skip Manthana Web autocomplete network calls */
+  manthanaWebLocked?: boolean;
   domain?: string;
   // Mode selector state (lifted from parent)
   intensity?: string;
@@ -72,6 +74,7 @@ export default function SearchBar({
   onSubmit,
   onAttach,
   mode = "auto",
+  manthanaWebLocked = false,
   domain = "medical",
   intensity = "auto",
   persona = "auto",
@@ -133,7 +136,7 @@ export default function SearchBar({
 
   const fetchSuggestions = useCallback(
     async (q: string) => {
-      if (!isSearchMode || q.length < 3) {
+      if (!isSearchMode || manthanaWebLocked || q.length < 3) {
         setSuggestions([]);
         setShowSuggestions(false);
         return;
@@ -146,7 +149,7 @@ export default function SearchBar({
         // Fail silently
       }
     },
-    [isSearchMode, domain, lang]
+    [isSearchMode, manthanaWebLocked, domain, lang]
   );
 
   const handleChange = (val: string) => {

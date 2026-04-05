@@ -2,7 +2,7 @@
 knowledge.py — Knowledge Panel AI Summary Router
 =================================================
 Provides a minimal AI summary for the knowledge panel sidebar.
-Single Groq call per unique entity, cached in Redis for 24 hours.
+Single OpenRouter call per unique entity, cached in Redis for 24 hours.
 """
 
 from __future__ import annotations
@@ -10,25 +10,24 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import sys
 import time
 from typing import Optional
 
-import httpx
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from config import WebSettings, get_web_settings
-
-import sys
 
 PROJECT_ROOT = "/opt/manthana"
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 from services.shared.envelopes import create_web_response
 
-logger = logging.getLogger("manthana.web.knowledge")
+from manthana_inference import chat_complete_async
+from services.shared.openrouter_helpers import get_inference_config, openrouter_api_keys
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+logger = logging.getLogger("manthana.web.knowledge")
 
 SYSTEM_PROMPT = (
     "You are a concise medical reference assistant. "
@@ -42,37 +41,29 @@ def _cache_key(entity: str, domain: str) -> str:
     return f"web:knowledge:{h}"
 
 
-async def _groq_complete(
+async def _openrouter_complete(
     prompt: str,
-    api_key: str,
-    model: str = "llama-3.3-70b-versatile",
+    settings: WebSettings,
     max_tokens: int = 200,
 ) -> Optional[str]:
-    """Single Groq chat completion with tight token limit."""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(
-                GROQ_API_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "max_tokens": max_tokens,
-                    "temperature": 0.3,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"].strip()
-    except Exception as exc:
-        logger.warning(f"Groq knowledge call failed: {exc}")
+    keys = openrouter_api_keys(settings)
+    if not keys:
         return None
+    cfg = get_inference_config()
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+    for api_key in keys:
+        try:
+            from manthana_inference import build_openrouter_async_client
+
+            client = build_openrouter_async_client(api_key, cfg)
+            text, _m = await chat_complete_async(client, cfg, "web_knowledge", messages)
+            return (text or "").strip()
+        except Exception as exc:
+            logger.warning("OpenRouter knowledge call failed: %s", exc)
+    return None
 
 
 def create_knowledge_router() -> APIRouter:
@@ -88,7 +79,7 @@ def create_knowledge_router() -> APIRouter:
     ):
         """
         Generate a 2-3 sentence medical summary for the knowledge panel.
-        Uses Groq (fast, cheap). Cached in Redis for 24 hours.
+        Uses OpenRouter. Cached in Redis for 24 hours.
         """
         rid = getattr(request.state, "request_id", "unknown")
         redis_client = getattr(request.app.state, "redis", None)
@@ -109,8 +100,7 @@ def create_knowledge_router() -> APIRouter:
             except Exception:
                 pass
 
-        api_key = settings.WEB_GROQ_API_KEY
-        if not api_key:
+        if not openrouter_api_keys(settings):
             return JSONResponse(
                 status_code=200,
                 content=create_web_response(
@@ -132,12 +122,7 @@ def create_knowledge_router() -> APIRouter:
         )
 
         start = time.time()
-        summary = await _groq_complete(
-            prompt,
-            api_key,
-            model=settings.WEB_GROQ_MODEL,
-            max_tokens=200,
-        )
+        summary = await _openrouter_complete(prompt, settings, max_tokens=200)
         elapsed = int((time.time() - start) * 1000)
 
         payload = {

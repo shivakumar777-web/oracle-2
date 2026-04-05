@@ -7,6 +7,7 @@ import Logo from "./Logo";
 import ServiceHealth from "./ServiceHealth";
 import { useLang } from "./LangProvider";
 import { authClient } from "@/lib/auth-client";
+import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
 
 const NAV_ITEMS = [
   { href: "/", icon: "✦", label: "Oracle", id: "oracle" },
@@ -17,7 +18,7 @@ const NAV_ITEMS = [
     label: "Med Deep Research",
     id: "deep-research",
   },
-  { href: null, icon: "◎", label: "Manthana Analyse", id: "manthana-analyse", placeholder: true as const },
+  { href: "/analyse", icon: "◎", label: "Manthana Analyse", id: "manthana-analyse" },
   { href: "#history", icon: "◷", label: "History", id: "history" },
   { href: "#settings", icon: "⚙", label: "Settings", id: "settings" },
 ] as const;
@@ -36,6 +37,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const { lang, setLang } = useLang();
   const { data: session, isPending } = authClient.useSession();
+  const webLocked = isManthanaWebLocked();
 
   const CLINICAL_TOOLS = [
     { id: "drug", icon: "💊", label: "Drug Interactions" },
@@ -180,7 +182,20 @@ export default function Sidebar({
           return isOverlay ? (
             <div key={item.id}>{content}</div>
           ) : (
-            <Link key={item.id} href={item.href!}>
+            <Link
+              key={item.id}
+              href={item.href!}
+              title={
+                item.id === "search" && webLocked
+                  ? "Manthana Web — refined experience coming soon"
+                  : undefined
+              }
+              aria-label={
+                item.id === "search" && webLocked
+                  ? "Manthana Web, coming soon"
+                  : undefined
+              }
+            >
               {content}
             </Link>
           );

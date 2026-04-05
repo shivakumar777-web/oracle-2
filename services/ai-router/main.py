@@ -17,8 +17,6 @@ Downstream backends:
   11 clinical micro-services (ecg … indexer; radiology ML service removed)
 """
 
-from __future__ import annotations
-
 import asyncio
 import datetime
 import hashlib
@@ -48,6 +46,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     HTTPException,
     Query as FQuery,
     Request,
@@ -537,19 +536,21 @@ def _merge_and_deduplicate(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# LLM helpers — Groq (cloud API, no local Ollama model needed)
+# LLM helpers — OpenRouter (SSOT: config/cloud_inference.yaml)
 # ═══════════════════════════════════════════════════════════════════════
-_GROQ_PLACEHOLDER = "your_groq_api_key_here"
 
-
-def _get_groq_api_key(settings: Settings) -> str:
-    """Get Groq API key from Settings or os.environ. Rejects placeholder."""
-    key = (getattr(settings, "GROQ_API_KEY", "") or "").strip()
-    if not key:
-        key = (os.environ.get("GROQ_API_KEY") or "").strip()
-    if not key or key == _GROQ_PLACEHOLDER or key.startswith("your_") or len(key) < 20:
-        return ""
-    return key
+from manthana_inference import (  # noqa: E402
+    build_openrouter_async_client,
+    build_openrouter_sync_client,
+    chat_complete_async,
+    chat_complete_sync,
+    resolve_role,
+    stream_chat_async,
+)
+from services.shared.openrouter_helpers import (  # noqa: E402
+    get_inference_config,
+    openrouter_api_keys,
+)
 
 
 async def _call_groq_chat(
@@ -557,47 +558,60 @@ async def _call_groq_chat(
     prompt: str,
     system_prompt: Optional[str],
     request_id: str,
+    *,
+    role: str = "ai_router_chat",
+    max_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
 ) -> str:
-    """Non-streaming chat via Groq API."""
-    api_key = _get_groq_api_key(settings)
-    if not api_key:
-        json_log("manthana.ai-router", "error",
-                 event="groq_no_client", message="GROQ_API_KEY not set or invalid (replace placeholder in .env)",
-                 request_id=request_id)
+    """Non-streaming chat via OpenRouter."""
+    keys = openrouter_api_keys(settings)
+    if not keys:
+        json_log(
+            "manthana.ai-router",
+            "error",
+            event="openrouter_no_client",
+            message="OPENROUTER_API_KEY not set",
+            request_id=request_id,
+        )
         raise HTTPException(
             status_code=502,
-            detail="Groq API key not configured. Set GROQ_API_KEY in .env with a valid key from console.groq.com",
+            detail="OpenRouter API key not configured. Set OPENROUTER_API_KEY in .env",
         )
-    try:
-        from groq import Groq
-        groq = Groq(api_key=api_key)
-    except Exception as exc:
-        json_log("manthana.ai-router", "error", event="groq_import", error=str(exc), request_id=request_id)
-        raise HTTPException(status_code=502, detail="Groq client unavailable.") from exc
     messages: List[Dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
-    model = getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile") or "llama-3.3-70b-versatile"
-    try:
-        loop = asyncio.get_running_loop()
-        def _sync_call():
-            return groq.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_completion_tokens=1024,
-                temperature=0.1,
-                stream=False,
+    cfg = get_inference_config()
+    rc = resolve_role(cfg, role)
+    if max_tokens is not None or temperature is not None:
+        rc = rc.model_copy(
+            update={
+                **({"max_tokens": max_tokens} if max_tokens is not None else {}),
+                **({"temperature": temperature} if temperature is not None else {}),
+            }
+        )
+    last_err: Optional[Exception] = None
+    for api_key in keys:
+        try:
+
+            def _sync_one() -> str:
+                client = build_openrouter_sync_client(api_key, cfg)
+                text, _m = chat_complete_sync(client, cfg, role, list(messages), role_cfg=rc)
+                return text
+
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(None, _sync_one)
+        except Exception as exc:
+            last_err = exc
+            json_log(
+                "manthana.ai-router",
+                "warning",
+                event="openrouter_key_failed",
+                error=str(exc),
+                request_id=request_id,
             )
-        completion = await loop.run_in_executor(None, _sync_call)
-        return completion.choices[0].message.content or ""
-    except Exception as exc:
-        json_log("manthana.ai-router", "error",
-                 event="groq_error", error=str(exc), request_id=request_id)
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to call Groq language model.",
-        ) from exc
+    json_log("manthana.ai-router", "error", event="openrouter_error", error=str(last_err), request_id=request_id)
+    raise HTTPException(status_code=502, detail="Failed to call OpenRouter language model.") from last_err
 
 
 async def _groq_stream(
@@ -623,34 +637,40 @@ async def _groq_stream(
     if sources:
         yield f'data: {json.dumps({"type": "sources", "sources": sources})}\n\n'
 
-    api_key = _get_groq_api_key(settings)
-    if not api_key:
-        json_log("manthana.ai-router", "error",
-                 event="groq_no_client", message="GROQ_API_KEY not set or invalid (replace placeholder in .env)",
-                 request_id=request_id)
-        yield 'data: {"message":{"content":"Groq API key not configured. Set GROQ_API_KEY in .env with a valid key from console.groq.com"}}\n\n'
+    keys = openrouter_api_keys(settings)
+    if not keys:
+        json_log(
+            "manthana.ai-router",
+            "error",
+            event="openrouter_no_client",
+            message="OPENROUTER_API_KEY not set",
+            request_id=request_id,
+        )
+        yield 'data: {"message":{"content":"OpenRouter API key not configured. Set OPENROUTER_API_KEY in .env"}}\n\n'
         yield 'data: {"type": "done"}\n\n'
         return
-    model = getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile") or "llama-3.3-70b-versatile"
+    cfg = get_inference_config()
     try:
-        from groq import AsyncGroq
-        client = AsyncGroq(api_key=api_key)
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_completion_tokens=1024,
-            temperature=0.1,
-            stream=True,
-        )
-        async for chunk in stream:
-            content = chunk.choices[0].delta.content if chunk.choices else None
-            if content:
-                payload = json.dumps({"message": {"content": content}, "type": "token"})
-                yield f"data: {payload}\n\n"
-        yield 'data: {"type": "done"}\n\n'
+        for api_key in keys:
+            try:
+                client = build_openrouter_async_client(api_key, cfg)
+                async for delta, _model in stream_chat_async(client, cfg, "ai_router_chat", list(messages)):
+                    if delta:
+                        payload = json.dumps({"message": {"content": delta}, "type": "token"})
+                        yield f"data: {payload}\n\n"
+                yield 'data: {"type": "done"}\n\n'
+                return
+            except Exception as inner:
+                json_log(
+                    "manthana.ai-router",
+                    "warning",
+                    event="openrouter_stream_key_failed",
+                    error=str(inner),
+                    request_id=request_id,
+                )
+        raise RuntimeError("all keys failed")
     except Exception as exc:
-        json_log("manthana.ai-router", "error",
-                 event="groq_stream_error", error=str(exc), request_id=request_id)
+        json_log("manthana.ai-router", "error", event="openrouter_stream_error", error=str(exc), request_id=request_id)
         yield 'data: {"error": "stream_error"}\n\n'
         yield 'data: {"type": "done"}\n\n'
 
@@ -850,15 +870,11 @@ def create_app(settings: Settings) -> FastAPI:
         else:
             logger.warning("[REDIS] redis.asyncio not installed — running without cache")
 
-        # Groq API key check (Oracle chat)
-        groq_key = _get_groq_api_key(settings)
-        if groq_key:
-            logger.info("[GROQ] API key configured (Oracle chat ready)")
+        or_keys = openrouter_api_keys(settings)
+        if or_keys:
+            logger.info("[OpenRouter] API key configured (Oracle chat ready)")
         else:
-            logger.warning(
-                "[GROQ] GROQ_API_KEY not set or invalid — Oracle chat will fail. "
-                "Add a valid key from console.groq.com to .env"
-            )
+            logger.warning("[OpenRouter] OPENROUTER_API_KEY not set — Oracle chat will fail.")
 
         yield
 
@@ -1139,8 +1155,8 @@ def create_app(settings: Settings) -> FastAPI:
     async def analyze_auto(
         request: Request,
         file: UploadFile = File(...),
-        type_hint: Optional[str] = Body(default=None),
-        patient_id: Optional[str] = Body(default=None),
+        type_hint: Optional[str] = Form(default=None),
+        patient_id: Optional[str] = Form(default=None),
         user: Optional[dict] = Depends(get_protected_user),
         settings: Settings = Depends(get_settings),
     ):
@@ -1297,9 +1313,13 @@ def create_app(settings: Settings) -> FastAPI:
             question, domains, subdomains, intent, depth, context_text, sources_block,
         )
         answer = await _call_groq_chat(
-            settings, prompt,
+            settings,
+            prompt,
             "You are a medical AI research assistant. Return ONLY valid JSON as specified, no commentary.",
             rid,
+            role="ai_router_synthesis",
+            max_tokens=8192,
+            temperature=0.2,
         )
 
         sections = _parse_deep_research_sections(answer)
@@ -1784,20 +1804,21 @@ You are answering in M5 (Five Domain) mode. The user will see your response alon
                     {"role": "user", "content": message}
                 ]
                 
-                # Call LLM for this domain
-                api_key = _get_groq_api_key(settings)
-                if api_key:
-                    from groq import AsyncGroq
-                    groq_client = AsyncGroq(api_key=api_key)
-                    completion = await groq_client.chat.completions.create(
-                        model=getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile") or "llama-3.3-70b-versatile",
-                        messages=messages,
-                        max_completion_tokens=600,
-                        temperature=0.1,
-                    )
-                    content = completion.choices[0].message.content or ""
-                else:
-                    content = f"[{domain.value.upper()}] Response unavailable - API key not configured."
+                keys = openrouter_api_keys(settings)
+                cfg = get_inference_config()
+                content = f"[{domain.value.upper()}] Response unavailable - API key not configured."
+                for api_key in keys:
+                    try:
+                        client = build_openrouter_async_client(api_key, cfg)
+                        content, _m = await chat_complete_async(
+                            client,
+                            cfg,
+                            "oracle_m5",
+                            messages,
+                        )
+                        break
+                    except Exception:
+                        continue
                 
                 return domain, content, sources
                 
@@ -1892,6 +1913,9 @@ You are answering in M5 (Five Domain) mode. The user will see your response alon
                         "clinical correlation when appropriate."
                     ),
                     request_id=rid,
+                    role="ai_router_synthesis",
+                    max_tokens=2048,
+                    temperature=0.1,
                 )
                 parsed = json.loads(raw)
                 if redis_client is not None:

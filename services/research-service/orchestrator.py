@@ -39,7 +39,6 @@ _EMBEDDING_DIM = 768
 _EMBEDDING_MODEL = "nomic-embed-text"
 _EMBED_MAX_CHARS = 2000
 _RAG_SNIPPET_CHARS = 800
-_GROQ_PLACEHOLDER = "your_groq_api_key_here"
 
 # Depth → budgets (per plan §5.3)
 _DEPTH_BUDGET: Dict[str, Dict[str, Any]] = {
@@ -303,18 +302,14 @@ def _effective_total_timeout(
     return base
 
 
-def _get_groq_key(settings: ResearchSettings) -> str:
-    key = (settings.RESEARCH_GROQ_API_KEY or "").strip()
-    if not key or key == _GROQ_PLACEHOLDER or key.startswith("your_") or len(key) < 20:
-        return ""
-    return key
-
-
 def _any_llm_configured(settings: ResearchSettings) -> bool:
-    k = _get_groq_key(settings)
+    import os
+
+    k1 = (settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+    k2 = (settings.OPENROUTER_API_KEY_2 or os.environ.get("OPENROUTER_API_KEY_2") or "").strip()
     return bool(
-        k
-        or (settings.RESEARCH_OPENAI_API_KEY or "").strip()
+        (k1 and len(k1) >= 8)
+        or (k2 and len(k2) >= 8)
         or (settings.RESEARCH_OLLAMA_URL or "").strip()
     )
 
@@ -1131,8 +1126,7 @@ async def synthesize_research_report(
                 "id": "summary",
                 "title": "Research Summary",
                 "content": (
-                    "LLM not configured (set RESEARCH_GROQ_API_KEY, or RESEARCH_OPENAI_API_KEY, "
-                    "or RESEARCH_OLLAMA_URL). "
+                    "LLM not configured (set OPENROUTER_API_KEY or RESEARCH_OLLAMA_URL). "
                     "Below is a compact view of retrieved sources.\n\n"
                     + context_text[:6000]
                 ),
@@ -1211,6 +1205,11 @@ async def run_research(
             "citation_style": cs,
             "provider_used": "",
         }
+
+    if not settings.RESEARCH_USE_LEGACY_RAG:
+        from hybrid_research import run_hybrid_research
+
+        return await run_hybrid_research(body, settings, request_id)
 
     domains = list(body.domains or [])
     subdomains = list(body.subdomains or [])
@@ -1372,6 +1371,14 @@ async def stream_research_events(
     timeout_sec = _effective_total_timeout(budget, target_sec)
     deadline = time.monotonic() + timeout_sec
     t0 = time.monotonic()
+
+    if not settings.RESEARCH_USE_LEGACY_RAG:
+        from hybrid_research import hybrid_pipeline_timeout, stream_hybrid_research_events
+
+        hto = hybrid_pipeline_timeout(settings, body)
+        async for ev in stream_hybrid_research_events(body, settings, request_id, hto):
+            yield ev
+        return
 
     def _check_deadline() -> None:
         if time.monotonic() > deadline:

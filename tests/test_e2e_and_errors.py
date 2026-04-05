@@ -5,6 +5,7 @@ E2E and error-path tests.
 - Error paths: 500s, timeouts, circuit breaker behavior.
 """
 import io
+import os
 import pytest
 from PIL import Image
 
@@ -22,7 +23,7 @@ from httpx import Response as HttpxResponse, TimeoutException
 
 
 @pytest.mark.asyncio
-async def test_e2e_full_search_flow(respx_mock):
+async def test_e2e_full_search_flow(respx_mock, monkeypatch):
     """
     Full search flow: api GET /search → orchestrator manthana_search
     with all external services (ES, SearXNG, Crawl4AI, Groq, etc.) mocked.
@@ -86,12 +87,18 @@ async def test_e2e_full_search_flow(respx_mock):
         respx_mock.post("http://meili.test/indexes/medical_search/documents").mock(
             return_value=HttpxResponse(202)
         )
-        # Groq for synthesize (SDK, not HTTP — mock _get_groq)
-        mock_groq = MagicMock()
-        mock_groq.chat.completions.create.return_value = MagicMock(
-            choices=[MagicMock(message=MagicMock(content="Synthesized medical answer."))]
+        # OpenRouter for synthesize (SDK — mock manthana_inference.chat_complete_sync)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-e2e")
+        monkeypatch.setenv(
+            "CLOUD_INFERENCE_CONFIG_PATH",
+            os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "config", "cloud_inference.yaml")
+            ),
         )
-        with patch("orchestrator._get_groq", return_value=mock_groq):
+        with patch(
+            "manthana_inference.chat_complete_sync",
+            return_value=("Synthesized medical answer.", "m"),
+        ):
             with patch("orchestrator._get_redis", new_callable=AsyncMock, return_value=None):
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"

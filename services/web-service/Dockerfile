@@ -10,16 +10,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY services/web-service/requirements.txt .
+COPY oracle-2/services/web-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY packages/manthana-inference /tmp/manthana-inference
+RUN pip install --no-cache-dir /tmp/manthana-inference
+
+COPY config/cloud_inference.yaml /app/config/cloud_inference.yaml
+
 # Copy shared modules
-COPY services/shared/ /app/services/shared/
+COPY oracle-2/services/shared/ /app/services/shared/
 
 # Copy application code
-COPY services/web-service/ .
+COPY oracle-2/services/web-service/ .
 
-# Set Python path for shared imports
+ENV CLOUD_INFERENCE_CONFIG_PATH=/app/config/cloud_inference.yaml
 ENV PYTHONPATH=/app
 
 # Expose port

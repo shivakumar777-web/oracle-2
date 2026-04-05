@@ -5,25 +5,36 @@ on:
     branches:
       - main
     paths:
-      - "services/research-service/**"
-      - "services/shared/**"
-      - "tests/test_research_*.py"
-      - ".github/workflows/research-contract-tests.yml"
+      - "oracle-2/services/research-service/**"
+      - "oracle-2/services/shared/**"
+      - "oracle-2/tests/test_research_*.py"
+      - "oracle-2/tests/test_hybrid_research.py"
+      - "packages/manthana-inference/**"
+      - "config/cloud_inference.yaml"
+      - ".github/workflows/oracle2-research-contract-tests.yml"
   pull_request:
     paths:
-      - "services/research-service/**"
-      - "services/shared/**"
-      - "tests/test_research_*.py"
+      - "oracle-2/services/research-service/**"
+      - "oracle-2/services/shared/**"
+      - "oracle-2/tests/test_research_*.py"
+      - "oracle-2/tests/test_hybrid_research.py"
+      - "packages/manthana-inference/**"
+      - "config/cloud_inference.yaml"
+      - ".github/workflows/oracle2-research-contract-tests.yml"
 
 env:
   RESEARCH_DATABASE_URL: "postgresql://test:test@localhost:5432/test_research"
-  RESEARCH_GROQ_API_KEY: "test-groq-key"
+  OPENROUTER_API_KEY: "test-openrouter-key-12345678901234567890"
+  CLOUD_INFERENCE_CONFIG_PATH: "${{ github.workspace }}/config/cloud_inference.yaml"
   REQUIRE_AUTH: "false"
 
 jobs:
   contract-tests:
     name: Research Contract Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oracle-2
 
     services:
       postgres:
@@ -52,12 +63,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -e ../packages/manthana-inference
           pip install -r services/research-service/requirements.txt
           pip install pytest pytest-asyncio pytest-cov httpx
 
       - name: Run research contract tests
         run: |
-          PYTHONPATH=.:services/research-service pytest tests/test_research_prompts.py -v --tb=short
+          PYTHONPATH=.:services/research-service pytest tests/test_research_prompts.py tests/test_hybrid_research.py -v --tb=short
 
       - name: Verify isolation - No cross-service imports
         run: |
@@ -99,6 +111,9 @@ jobs:
   circuit-breaker-test:
     name: Circuit Breaker Integration
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oracle-2
 
     steps:
       - name: Checkout
@@ -112,6 +127,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -e ../packages/manthana-inference
           pip install -r services/research-service/requirements.txt
           pip install pytest pytest-asyncio
 
@@ -141,8 +157,8 @@ jobs:
               print('✅ Circuit breaker stats work')
               
           asyncio.run(test_circuit())
-          echo 'Circuit breaker pattern verified'
           "
+          echo 'Circuit breaker pattern verified'
 
   frontend-research-check:
     name: Frontend Research API Types
@@ -157,22 +173,22 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: frontend-manthana/manthana/package.json
+          cache-dependency-path: oracle-2/frontend-manthana/manthana/package.json
 
       - name: Install dependencies
         run: |
-          cd frontend-manthana/manthana
+          cd oracle-2/frontend-manthana/manthana
           npm ci
 
       - name: Type check research API client
         run: |
-          cd frontend-manthana/manthana
+          cd oracle-2/frontend-manthana/manthana
           npx tsc --noEmit
           echo "✅ Frontend research API types compile successfully"
 
       - name: Verify no cross-section imports
         run: |
-          cd frontend-manthana/manthana
+          cd oracle-2/frontend-manthana/manthana
           echo "Checking for cross-section import violations..."
           # Check that research lib doesn't import from oracle/web/analysis
           if grep -r "from.*oracle" src/lib/api/research/ 2>/dev/null; then

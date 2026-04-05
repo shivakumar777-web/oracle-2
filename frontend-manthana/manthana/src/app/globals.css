@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Radiology module design tokens + components (load before host overrides for shared classes like .cosmic-bg) */
+@import "../styles/analyse-design-system.css";
+
 /* ═══════════════════════════════════════════════
    MANTHANA — Brand Design System
    Source of truth: manthana-elite.html :root
