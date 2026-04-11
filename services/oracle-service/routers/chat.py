@@ -233,10 +233,10 @@ async def _openrouter_stream_with_key(
     *,
     web_search_parameters: Optional[Dict[str, Any]] = None,
     enable_web: bool = True,
+    chat_role: str,
 ) -> AsyncGenerator[str, None]:
     cfg = effective_inference_config(settings)
-    # Use free models router when ORACLE_USE_FREE_MODELS is enabled
-    role_name = "oracle_chat_free" if settings.ORACLE_USE_FREE_MODELS else "oracle_chat"
+    role_name = chat_role
     role_cfg = resolve_role(cfg, role_name)
     om = (settings.ORACLE_OPENROUTER_MODEL or "").strip()
     if om:
@@ -269,6 +269,7 @@ async def _openrouter_stream_with_circuit(
     *,
     web_search_parameters: Optional[Dict[str, Any]] = None,
     enable_web: bool = True,
+    chat_role: str,
 ) -> AsyncGenerator[str, None]:
     from openai import APIError, RateLimitError
 
@@ -292,6 +293,7 @@ async def _openrouter_stream_with_circuit(
                 messages,
                 web_search_parameters=web_search_parameters,
                 enable_web=enable_web,
+                chat_role=chat_role,
             ):
                 yield chunk
             json_log("manthana.oracle", "info", event="openrouter_stream_success", key=key_num, request_id=request_id)
@@ -598,6 +600,7 @@ async def _oracle_llm_stream(
     *,
     web_search_parameters: Optional[Dict[str, Any]] = None,
     enable_web: bool = True,
+    chat_role: str,
 ) -> AsyncGenerator[str, None]:
     if is_emergency:
         yield 'data: {"type": "emergency", "is_emergency": true}\n\n'
@@ -628,6 +631,7 @@ async def _oracle_llm_stream(
             request_id,
             web_search_parameters=web_search_parameters,
             enable_web=enable_web,
+            chat_role=chat_role,
         ):
             yield chunk
         await oracle_openrouter_circuit._on_success()
@@ -962,6 +966,15 @@ def create_chat_router(limiter) -> APIRouter:
                 request_id=rid,
             )
 
+        if settings.ORACLE_USE_FREE_MODELS:
+            chat_role = "oracle_chat_free"
+        elif is_emergency:
+            chat_role = "oracle_chat"
+        elif (intensity or "auto") == "quick":
+            chat_role = "oracle_chat_shallow"
+        else:
+            chat_role = "oracle_chat"
+
         async def stream_generator():
             async for chunk in _oracle_llm_stream(
                 settings,
@@ -972,6 +985,7 @@ def create_chat_router(limiter) -> APIRouter:
                 is_emergency=is_emergency,
                 web_search_parameters=web_search_parameters,
                 enable_web=enable_web,
+                chat_role=chat_role,
             ):
                 yield chunk
 
