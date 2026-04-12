@@ -12,7 +12,7 @@ export default function SettingsPage() {
   const { theme } = useTheme();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       <TopBar />
 
       <main style={{ flex: 1, padding: "32px 24px", overflowY: "auto" }}>
@@ -110,7 +110,7 @@ export default function SettingsPage() {
           <Section title="Analysis Defaults">
             <SettingRow label="Default Modality">
               <select
-                defaultValue="auto"
+                defaultValue="xray"
                 style={{
                   background: "var(--void-3)",
                   border: "1px solid var(--glass-border)",
@@ -122,7 +122,6 @@ export default function SettingsPage() {
                   outline: "none",
                 }}
               >
-                <option value="auto">Auto-Detect</option>
                 <option value="xray">X-Ray</option>
                 <option value="brain_mri">Brain MRI</option>
                 <option value="spine_mri">Spine / Neuro MRI</option>

@@ -25,7 +25,6 @@ const INTENSITY_MODES = [
   { id: "auto", label: "AUTO", icon: "✦", color: "gold", desc: "System decides" },
   { id: "quick", label: "Quick Insight", icon: "⚡", color: "gold", desc: "Fast answers, 2-3 sentences" },
   { id: "clinical", label: "Clinical Review", icon: "🏥", color: "teal", desc: "Detailed with sources & citations" },
-  { id: "deep", label: "Deep Research", icon: "🔬", color: "purple", desc: "Comprehensive analysis" },
 ];
 
 // User Persona Modes
@@ -59,13 +58,13 @@ interface SearchBarProps {
   intensity?: string;
   persona?: string;
   evidence?: string;
-  deepResearch?: boolean;
-  onDeepResearchChange?: (val: boolean) => void;
   onIntensityChange?: (val: string) => void;
   onPersonaChange?: (val: string) => void;
   onEvidenceChange?: (val: string) => void;
   isThinking?: boolean;
   onStop?: () => void;
+  /** Free / non-PRO Oracle: quick-only intensity, Web locked; M5 is available on all tiers. */
+  oracleLimited?: boolean;
 }
 
 export default function SearchBar({
@@ -79,13 +78,12 @@ export default function SearchBar({
   intensity = "auto",
   persona = "auto",
   evidence = "auto",
-  deepResearch = false,
-  onDeepResearchChange,
   onIntensityChange,
   onPersonaChange,
   onEvidenceChange,
   isThinking = false,
   onStop,
+  oracleLimited = false,
 }: SearchBarProps) {
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -224,7 +222,7 @@ export default function SearchBar({
           {showModePanel && !isSearchMode && (
             <div
               ref={modePanelRef}
-              className="absolute left-0 top-full mt-2 z-50 w-[320px] rounded-xl
+              className="absolute left-0 top-full mt-2 z-50 w-[min(320px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] rounded-xl
                 bg-[#0A1628] border border-white/[0.08] shadow-2xl overflow-hidden"
             >
               {/* Section 1: Query Intensity */}
@@ -233,7 +231,10 @@ export default function SearchBar({
                   Query Intensity
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {INTENSITY_MODES.map((m) => (
+                  {(oracleLimited
+                    ? INTENSITY_MODES.filter((m) => m.id !== "clinical")
+                    : INTENSITY_MODES
+                  ).map((m) => (
                     <button
                       key={m.id}
                       onClick={() => setIntensity(m.id)}
@@ -338,29 +339,7 @@ export default function SearchBar({
                 </div>
               </div>
 
-              {/* Section 4: Deep Research upgrade */}
-              <div className="p-3 border-t border-white/[0.06]">
-                <button
-                  onClick={() => onDeepResearchChange?.(!deepResearch)}
-                  className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-all
-                    ${deepResearch ? "bg-purple/20 border border-purple/40" : "hover:bg-white/[0.04] border border-transparent"}`}
-                >
-                  <span className="text-sm">🔬</span>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-[11px] font-medium ${deepResearch ? "text-purple" : "text-cream/70"}`}>
-                      Deep Research
-                    </div>
-                    <div className="text-[9px] text-cream/40 truncate leading-tight">
-                      Include ClinicalTrials.gov + PubMed
-                    </div>
-                  </div>
-                  <span className={`text-xs ${deepResearch ? "text-purple" : "text-cream/40"}`}>
-                    {deepResearch ? "ON" : "OFF"}
-                  </span>
-                </button>
-              </div>
-
-              {/* Section 5: M5 Five Domain Mode */}
+              {/* M5 Five Domain Mode — all tiers */}
               <div className="p-3 border-t border-white/[0.06]">
                 <a
                   href="/?mode=m5"
@@ -383,6 +362,11 @@ export default function SearchBar({
                   <span className="text-xs text-gold/60 group-hover:text-gold">5×</span>
                 </a>
               </div>
+              {oracleLimited && (
+                <div className="px-3 py-2 border-t border-white/[0.06] text-[9px] text-cream/45 font-ui tracking-wide">
+                  PRO unlocks clinical query depth, Manthana Web search, and full Labs quotas.
+                </div>
+              )}
 
               {/* Footer */}
               <div className="px-3 py-2 bg-white/[0.02] border-t border-white/[0.06] flex justify-between items-center">
@@ -391,7 +375,6 @@ export default function SearchBar({
                     setIntensity("auto");
                     setPersona("auto");
                     setEvidence("auto");
-                    onDeepResearchChange?.(false);
                   }}
                   className="text-[10px] text-cream/50 hover:text-gold transition-colors"
                 >

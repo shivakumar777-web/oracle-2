@@ -40,6 +40,7 @@ function buildConnectOrigins() {
   addAbs(process.env.NEXT_PUBLIC_RESEARCH_API_URL ?? "http://localhost:8201");
   addAbs(process.env.NEXT_PUBLIC_ANALYSIS_API_URL ?? "http://localhost:8202");
   addAbs(process.env.NEXT_PUBLIC_CLINICAL_API_URL);
+  addAbs(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
   const httpOrigins = Array.from(origins);
   const wsOrigins = httpOrigins.map((o) =>
@@ -78,6 +79,8 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
     ).replace(/\/$/, "");
     return [
+      // Browsers request /favicon.ico by default; manifest referenced it but file was missing.
+      { source: "/favicon.ico", destination: "/icons/icon.svg" },
       // 1. Auth stays local — handled by Next.js API route
       { source: "/api/auth/:path*", destination: "/api/auth/:path*" },
       // 2. Oracle: handled by app/api/oracle-backend/[[...path]]/route.ts (do not rewrite here — breaks SSE).
@@ -92,6 +95,15 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: "/sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+        ],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
@@ -105,11 +117,13 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
+              // FastAPI /docs (proxied at /api/oracle-backend/docs) loads Swagger UI from jsDelivr
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net",
               "font-src 'self' https://fonts.gstatic.com data:",
               `img-src 'self' data: blob: ${apiOrigin} https:`,
-              `connect-src 'self' ${connectOrigins}`,
+              // SW fetch() + Swagger UI may request jsDelivr; connect-src governs fetch(), not script-src alone
+              `connect-src 'self' ${connectOrigins} https://cdn.jsdelivr.net`,
               "media-src 'self' blob:",
               // In-app /viewer iframe loads third-party result pages (user-chosen URLs)
               "frame-src 'self' https: http:",

@@ -3,67 +3,65 @@
  * Allows users to cancel their active subscription
  */
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { cancelRazorpaySubscription } from "@/lib/razorpay/client";
-import Database from "better-sqlite3";
-import path from "path";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const dbPath = path.join(process.cwd(), "auth.db");
-
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    // Get current user session
-    const session = await auth.api.getSession({
-      headers: req.headers,
-    });
+    const supabase = createServerSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
+    if (authError || !user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const user = session.user;
+    const { data: profile, error: pErr } = await supabase
+      .from("profiles")
+      .select("razorpay_subscription_id")
+      .eq("id", user.id)
+      .single();
 
-    // Check if user has an active subscription
-    if (!user.razorpaySubscriptionId) {
+    if (pErr || !profile?.razorpay_subscription_id) {
       return NextResponse.json(
         { error: "No active subscription found" },
         { status: 400 }
       );
     }
 
-    // Cancel the subscription at end of period
-    await cancelRazorpaySubscription(user.razorpaySubscriptionId, true);
+    const subId = profile.razorpay_subscription_id as string;
 
-    // Update user record to mark as cancelled
-    const db = new Database(dbPath);
-    try {
-      db.prepare(
-        `
-        UPDATE user 
-        SET subscriptionStatus = 'cancelled'
-        WHERE id = ?
-      `
-      ).run(user.id);
+    await cancelRazorpaySubscription(subId, true);
 
-      console.log(
-        `[Subscription Cancel] User ${user.id} cancelled subscription ${user.razorpaySubscriptionId}`
+    const { error: upErr } = await supabase
+      .from("profiles")
+      .update({ subscription_status: "cancelled" })
+      .eq("id", user.id);
+
+    if (upErr) {
+      console.error("[Subscription Cancel] DB update:", upErr);
+      return NextResponse.json(
+        { error: "Failed to update subscription status" },
+        { status: 500 }
       );
-
-      return NextResponse.json({
-        success: true,
-        message:
-          "Subscription cancelled. You'll keep access until the end of your billing period.",
-      });
-    } finally {
-      db.close();
     }
-  } catch (error: any) {
+
+    console.log(
+      `[Subscription Cancel] User ${user.id} cancelled subscription ${subId}`
+    );
+
+    return NextResponse.json({
+      success: true,
+      message:
+        "Subscription cancelled. You'll keep access until the end of your billing period.",
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("[Subscription Cancel] Error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to cancel subscription" },
+      { error: message || "Failed to cancel subscription" },
       { status: 500 }
     );
   }

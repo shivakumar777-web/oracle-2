@@ -19,10 +19,10 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@manthana/api": ["../../../packages/frontend-api/src"],
-      "@manthana/api/*": ["../../../packages/frontend-api/src/*"],
-      "@manthana/domain": ["../../../packages/frontend-domain/src"],
-      "@manthana/domain/*": ["../../../packages/frontend-domain/src/*"]
+      "@manthana/api": ["./packages/frontend-api/src"],
+      "@manthana/api/*": ["./packages/frontend-api/src/*"],
+      "@manthana/domain": ["./packages/frontend-domain/src"],
+      "@manthana/domain/*": ["./packages/frontend-domain/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

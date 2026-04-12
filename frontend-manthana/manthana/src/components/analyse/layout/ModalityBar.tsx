@@ -2,6 +2,7 @@
 import React, { useRef, useState, useCallback } from "react";
 import { MODALITIES } from "@/lib/analyse/constants";
 import { useMediaQuery } from "@/hooks/analyse/useMediaQuery";
+import { useProductAccess } from "@/components/ProductAccessProvider";
 
 interface Props {
   activeModality: string;
@@ -18,6 +19,8 @@ const MODALITY_COLORS: Record<string, string> = {
   ct_cardiac: "255,120,160",
   ct_spine: "140,180,255",
   ct_brain: "160,200,255",
+  ct_brain_vista: "255,200,120",
+  premium_ct_unified: "255,180,90",
   brain_mri: "0,196,176",
   spine_mri: "0,170,160",
   mri: "0,196,176", // legacy id if present in history
@@ -37,7 +40,15 @@ export default function ModalityBar({ activeModality, onSelect }: Props) {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const { isMobile, isTablet, isTouch } = useMediaQuery();
+  const { plan, status } = useProductAccess();
   const compact = isMobile || isTablet;
+  const normalizedPlan = (plan || "free").toLowerCase();
+  const hasPremiumCtAccess =
+    status === "active" && (normalizedPlan === "premium" || normalizedPlan === "enterprise");
+  const regularModalities = MODALITIES.filter(
+    (m) => m.id !== "auto" && m.id !== "premium_ct_unified"
+  );
+  const premiumModality = MODALITIES.find((m) => m.id === "premium_ct_unified");
 
   /* ── Mouse drag-to-scroll for desktop ── */
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -136,7 +147,7 @@ export default function ModalityBar({ activeModality, onSelect }: Props) {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        {MODALITIES.map((m) => {
+        {regularModalities.map((m) => {
           const isActive = activeModality === m.id;
           const rgb = MODALITY_COLORS[m.id] || "0,196,176";
 
@@ -213,6 +224,23 @@ export default function ModalityBar({ activeModality, onSelect }: Props) {
                     flexShrink: 0,
                   }} />
                   <span>{m.label}</span>
+                  {"premium" in m && m.premium ? (
+                    <span
+                      style={{
+                        marginLeft: 4,
+                        padding: "1px 5px",
+                        borderRadius: 4,
+                        fontSize: 7,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        background: "rgba(255,200,120,0.25)",
+                        color: "rgb(255,200,120)",
+                        border: "1px solid rgba(255,200,120,0.4)",
+                      }}
+                    >
+                      PRO
+                    </span>
+                  ) : null}
                 </>
               )}
               {/* Active glow dot */}
@@ -232,6 +260,119 @@ export default function ModalityBar({ activeModality, onSelect }: Props) {
             </button>
           );
         })}
+        {premiumModality ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: compact ? 4 : 6,
+              marginLeft: compact ? 4 : 8,
+              paddingLeft: compact ? 4 : 8,
+              borderLeft: "1px solid rgba(255,200,120,0.2)",
+            }}
+          >
+            {!compact ? (
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: 8,
+                  color: "rgb(255,200,120)",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Premium 3D CT
+              </span>
+            ) : null}
+            <button
+              key={premiumModality.id}
+              onClick={() => {
+                if (!isDragging && hasPremiumCtAccess) onSelect(premiumModality.id);
+              }}
+              title={
+                hasPremiumCtAccess
+                  ? premiumModality.description
+                  : "Premium (₹3999) or enterprise subscription required."
+              }
+              disabled={!hasPremiumCtAccess}
+              style={{
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: compact ? 0 : 6,
+                padding: compact ? "6px 12px" : "7px 14px",
+                borderRadius: "var(--r-full)",
+                border: `1px solid ${
+                  activeModality === premiumModality.id
+                    ? "rgba(255,180,90,0.6)"
+                    : "rgba(255,180,90,0.35)"
+                }`,
+                background:
+                  activeModality === premiumModality.id
+                    ? "linear-gradient(135deg, rgba(255,180,90,0.22), rgba(255,180,90,0.08))"
+                    : "rgba(255,180,90,0.06)",
+                cursor: hasPremiumCtAccess ? "pointer" : "not-allowed",
+                fontFamily: "var(--font-display)",
+                fontSize: compact ? 9 : 11,
+                fontWeight: 600,
+                color: hasPremiumCtAccess ? "rgb(255,200,120)" : "rgba(255,200,120,0.55)",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase" as const,
+                transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)",
+                boxShadow:
+                  activeModality === premiumModality.id
+                    ? "0 0 14px rgba(255,180,90,0.25), inset 0 1px 0 rgba(255,180,90,0.12)"
+                    : "none",
+                whiteSpace: "nowrap" as const,
+                position: "relative" as const,
+                overflow: "hidden" as const,
+                opacity: hasPremiumCtAccess ? 1 : 0.85,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: compact ? 8 : 9,
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  opacity: 1,
+                }}
+              >
+                {premiumModality.icon}
+              </span>
+              {!compact ? (
+                <>
+                  <span
+                    style={{
+                      width: 1,
+                      height: 10,
+                      background: "rgba(255,180,90,0.35)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span>{premiumModality.label}</span>
+                  <span
+                    style={{
+                      marginLeft: 4,
+                      padding: "1px 5px",
+                      borderRadius: 4,
+                      fontSize: 7,
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      background: hasPremiumCtAccess
+                        ? "rgba(255,180,90,0.25)"
+                        : "rgba(255,180,90,0.12)",
+                      color: "rgb(255,200,120)",
+                      border: "1px solid rgba(255,180,90,0.5)",
+                    }}
+                  >
+                    PREMIUM
+                  </span>
+                </>
+              ) : null}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* Right scroll arrow — hide on touch devices */}

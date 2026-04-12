@@ -28,6 +28,9 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# one-off Vercel upload bundle (secrets — never commit)
+vercel-upload.production.env
+
 # Better Auth SQLite DB (user data)
 auth.db
 
@@ -37,3 +40,5 @@ auth.db
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel

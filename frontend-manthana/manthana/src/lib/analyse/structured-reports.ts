@@ -443,6 +443,7 @@ function getModalityLabel(modality: string): string {
     cytology: "Cytology",
     mammography: "Mammography",
     oral_cancer: "Oral Cancer Screening",
+    dermatology: "Dermatology",
     lab_report: "Laboratory Report",
     prostate_mri: "Prostate MRI",
   };
@@ -469,13 +470,17 @@ function getModalityTechnique(modality: string): string {
     prostate_mri:
       "Multiparametric prostate MRI. PI-RADS–oriented structured reporting when clinically indicated; AI-assisted categorization aligned to PI-RADS.",
     ultrasound: "B-mode ultrasound images analyzed with AI. Feature extraction using OpenUS and MedSAM2 models.",
-    ecg: "Standard 12-lead ECG — digital or photographed. AI interpretation using ecg-fm and HeartLang models.",
+    ecg: "Standard 12-lead ECG — digital or photographed. Signal pipeline (Manthana ECG Engine) plus narrative via Manthana Cloud AI (Kimi K2.5) when configured.",
     pathology: "Whole slide image (WSI) analyzed at 40x magnification. AI tissue classification using Virchow foundation model.",
     cytology: "Cell-level microscopy analysis. AI classification using Virchow Cell model.",
     mammography:
       "Digital mammography: Mirai risk model when a complete four-view exam is available (L-CC, L-MLO, R-CC, R-MLO). Single-image uploads receive qualitative AI assessment only — Mirai risk scores require all four views.",
-    oral_cancer: "Clinical photograph of oral cavity. AI lesion detection using EfficientNet-B3 model.",
-    lab_report: "Laboratory report data extracted and analyzed by the configured clinical LLM against clinical reference ranges.",
+    oral_cancer:
+      "Clinical photograph of oral cavity. Screening-style class probabilities from on-service EfficientNet-V2-M and/or EfficientNet-B3 when weight files are deployed; structured vision fallback and patient-facing narrative via Manthana Cloud AI (Kimi K2.5) when configured. Screening assistance only — not a standalone diagnosis.",
+    dermatology:
+      "Clinical skin photograph. When weight files are deployed, screening-style class probabilities use on-service EfficientNet-V2-M (HAM7) and/or EfficientNet-B4 in priority order, mapped to legacy DERM_CLASSES; otherwise structured vision JSON from Manthana Cloud AI. Patient-facing narrative via the same cloud role when configured. Optional Grad-CAM overlay in structures when enabled — not histopathology. Screening assistance only.",
+    lab_report:
+      "Laboratory report data interpreted against reference ranges via Manthana Cloud AI (Kimi K2.5) when OpenRouter is configured.",
   };
   return map[modality] || "AI-assisted analysis performed.";
 }

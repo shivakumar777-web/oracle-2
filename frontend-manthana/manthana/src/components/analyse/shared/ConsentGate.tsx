@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { GATEWAY_URL } from "@/lib/analyse/constants";
-import { getGatewayAuthToken } from "@/lib/analyse/auth-token";
 
 interface Props {
   onAccept: (patientId: string) => void;
+  /** Mobile: user scrolled the consent body (e.g. to read terms) — parent can tuck away bottom chrome. */
+  onConsentBodyScroll?: (scrollTop: number) => void;
 }
 
-export function ConsentGate({ onAccept }: Props) {
+export function ConsentGate({ onAccept, onConsentBodyScroll }: Props) {
   const [patientId, setPatientId] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -19,13 +20,23 @@ export function ConsentGate({ onAccept }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const token = getGatewayAuthToken();
-      const res = await fetch(`${GATEWAY_URL}/consent`, {
+      if (
+        process.env.NODE_ENV === "development" &&
+        process.env.NEXT_PUBLIC_ANALYSE_DEV_BYPASS_CONSENT_GATEWAY === "1"
+      ) {
+        console.warn(
+          "[ConsentGate] NEXT_PUBLIC_ANALYSE_DEV_BYPASS_CONSENT_GATEWAY=1 — skipping consent POST (dev only).",
+          GATEWAY_URL
+        );
+        onAccept(patientId || "ANONYMOUS");
+        return;
+      }
+
+      /** Same-origin: uses Supabase session cookie — does not depend on Oracle/gateway POST /consent */
+      const res = await fetch("/api/labs/consent", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           patient_id: patientId || "ANONYMOUS",
           purpose: "radiology_second_opinion",
@@ -33,6 +44,16 @@ export function ConsentGate({ onAccept }: Props) {
         }),
       });
       if (!res.ok) {
+        const devGatewayError =
+          process.env.NODE_ENV === "development" &&
+          [502, 503, 504].includes(res.status);
+        if (devGatewayError) {
+          console.warn(
+            `[ConsentGate] Consent API returned HTTP ${res.status} — entering Manthana Labs in dev only.`
+          );
+          onAccept(patientId || "ANONYMOUS");
+          return;
+        }
         throw new Error(`Consent failed (${res.status})`);
       }
       onAccept(patientId || "ANONYMOUS");
@@ -61,7 +82,7 @@ export function ConsentGate({ onAccept }: Props) {
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 40,
+        zIndex: 110,
         background: "radial-gradient(circle at top, rgba(0,20,40,0.85), rgba(0,0,0,0.95))",
         display: "flex",
         alignItems: "center",
@@ -71,12 +92,13 @@ export function ConsentGate({ onAccept }: Props) {
     >
       <div
         className="glass-panel"
+        onScroll={(e) => onConsentBodyScroll?.(e.currentTarget.scrollTop)}
         style={{
           maxWidth: 680,
           width: "100%",
           maxHeight: "90vh",
           overflowY: "auto",
-          padding: "28px 32px 24px",
+          padding: "28px 32px max(24px, env(safe-area-inset-bottom, 0px))",
           borderRadius: "var(--r-xl)",
           border: "1px solid rgba(255,255,255,0.12)",
           boxShadow: "0 32px 100px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05)",

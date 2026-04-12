@@ -5,6 +5,8 @@ interface Props {
   children: React.ReactNode;
   collapsedContent?: React.ReactNode;
   peekHeight?: number;
+  /** Slide off-screen (e.g. consent flow: user scrolled to read — free bottom tap targets). */
+  tuckedOffScreen?: boolean;
 }
 
 type SheetState = "collapsed" | "full";
@@ -13,6 +15,7 @@ export default function BottomSheet({
   children,
   collapsedContent,
   peekHeight = 72,
+  tuckedOffScreen = false,
 }: Props) {
   const [sheetState, setSheetState] = useState<SheetState>("collapsed");
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -24,7 +27,7 @@ export default function BottomSheet({
 
   const heights: Record<SheetState, string> = {
     collapsed: `${peekHeight}px`,
-    full: "100vh",
+    full: "100dvh",
   };
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -103,9 +106,9 @@ export default function BottomSheet({
       {/* Sheet */}
       <div
         ref={sheetRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onTouchStart={tuckedOffScreen ? undefined : handleTouchStart}
+        onTouchMove={tuckedOffScreen ? undefined : handleTouchMove}
+        onTouchEnd={tuckedOffScreen ? undefined : handleTouchEnd}
         style={{
           position: "fixed",
           bottom: 0,
@@ -118,7 +121,10 @@ export default function BottomSheet({
           borderTopRightRadius: sheetState === "full" ? 0 : 16,
           borderTop: sheetState === "full" ? "none" : "1px solid rgba(0,196,176,0.2)",
           boxShadow: "0 -8px 40px rgba(0,0,0,0.5), 0 -2px 12px rgba(0,196,176,0.06)",
-          transition: "height 0.4s cubic-bezier(0.32, 0.72, 0, 1)",
+          transition:
+            "height 0.4s cubic-bezier(0.32, 0.72, 0, 1), transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
+          transform: tuckedOffScreen ? "translateY(100%)" : "translateY(0)",
+          pointerEvents: tuckedOffScreen ? "none" : "auto",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",

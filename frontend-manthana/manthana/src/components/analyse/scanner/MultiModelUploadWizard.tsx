@@ -9,6 +9,7 @@ interface Props {
   onSetFiles: (modalityId: string, files: File[]) => void;
   onComplete: () => void;
   onBack: () => void;
+  pro2dOnly?: boolean;
 }
 
 export default function MultiModelUploadWizard({
@@ -16,6 +17,7 @@ export default function MultiModelUploadWizard({
   onSetFiles,
   onComplete,
   onBack,
+  pro2dOnly,
 }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -295,7 +297,7 @@ export default function MultiModelUploadWizard({
           ref={fileInputRef}
           type="file"
           multiple
-          accept={getUploadAcceptTypes(current.modality)}
+          accept={getUploadAcceptTypes(current.modality, { pro2dOnly })}
           style={{ display: "none" }}
           onChange={handleFileSelect}
         />

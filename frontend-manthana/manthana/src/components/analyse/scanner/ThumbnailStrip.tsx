@@ -24,7 +24,7 @@ export default function ThumbnailStrip({
   if (images.length === 0) return null;
 
   const isScanning = (stage: string) =>
-    !["idle", "complete", "error"].includes(stage);
+    !["idle", "complete", "error", "medgemma_questions"].includes(stage);
 
   return (
     <div

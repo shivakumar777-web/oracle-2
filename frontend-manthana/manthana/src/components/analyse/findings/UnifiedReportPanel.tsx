@@ -6,6 +6,7 @@ import { MODALITIES } from "@/lib/analyse/constants";
 import DualArcGauge from "./DualArcGauge";
 import { scoreFindings } from "@/lib/analyse/structured-reports";
 import LanguageSelector, { getPersistedLanguage } from "@/components/analyse/shared/LanguageSelector";
+import { uniqueFormattedLabsModels } from "@/lib/analyse/display-models";
 
 interface Props {
   unifiedResult: UnifiedAnalysisResult;
@@ -371,7 +372,7 @@ export default function UnifiedReportPanel({
               MODELS USED
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {[...new Set(unifiedResult.models_used)].map((m) => (
+              {uniqueFormattedLabsModels(unifiedResult.models_used).map((m) => (
                 <span
                   key={m}
                   className="font-mono"
@@ -404,9 +405,9 @@ export default function UnifiedReportPanel({
             <button
               className="btn-teal"
               onClick={onAskAI}
-              style={{ flex: 1, fontSize: 11, padding: "8px 12px" }}
+              style={{ flex: 1, fontSize: 10, padding: "8px 10px", lineHeight: 1.25 }}
             >
-              Ask AI
+              Ask Manthana Oracle
             </button>
             <button
               className="btn-ghost"

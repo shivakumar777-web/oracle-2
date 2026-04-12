@@ -11,9 +11,6 @@ import {
   normalizeCitationFormatKey,
 } from "@/lib/citation-format";
 import { RESEARCH_DOMAINS } from "@/lib/deep-research-config";
-import type { PlagiarismResult, PlagiarismState } from "@/types/plagiarism";
-import { checkOriginality } from "@/lib/api";
-import { OriginalityPanel } from "./OriginalityPanel";
 
 const AllopathyIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" width="14" height="14">
@@ -114,8 +111,6 @@ export function WorkspaceResultState({
   citationStyle,
   onSaveToServer,
 }: Props) {
-  const [plagState, setPlagState] =
-    useState<PlagiarismState>("idle");
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -124,15 +119,6 @@ export function WorkspaceResultState({
     result.citation_style ?? citationStyle,
   );
   const styleLabel = citationStyleLabel(effectiveFormat);
-  const [plagResult, setPlagResult] =
-    useState<PlagiarismResult | null>(null);
-  const [scanId] = useState(() => {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-    return `scan-${Date.now().toString(36)}`;
-  });
-
   const handleExportPDF = () => {
     window.print();
   };
@@ -163,30 +149,6 @@ export function WorkspaceResultState({
     } catch {
       setSaveState("error");
       setTimeout(() => setSaveState("idle"), 5000);
-    }
-  };
-
-  const handleCheckOriginality = async () => {
-    if (!result) return;
-    if (plagState === "checking") return;
-    setPlagState("checking");
-    setPlagResult(null);
-
-    const fullText = [
-      (result as any).summary ?? "",
-      ...(result.sections ?? []).map((s) => s.content),
-    ].join("\n\n");
-
-    try {
-      const res = await checkOriginality(fullText, scanId);
-      if ((res as any)?.error) {
-        setPlagState("error");
-      } else {
-        setPlagResult(res);
-        setPlagState("done");
-      }
-    } catch {
-      setPlagState("error");
     }
   };
 
@@ -305,20 +267,6 @@ export function WorkspaceResultState({
           >
             ↺ New
           </button>
-          <button
-            className={`action-btn originality ${plagState}`}
-            onClick={handleCheckOriginality}
-            disabled={plagState === "checking"}
-            title="Check originality of this report"
-          >
-            {plagState === "checking" && (
-              <span className="small-spinner" aria-hidden="true" />
-            )}
-            {plagState === "idle" && "🔱 Check Originality"}
-            {plagState === "checking" && "Checking..."}
-            {plagState === "done" && "✓ Originality Checked"}
-            {plagState === "error" && "⚠ Check Failed"}
-          </button>
         </div>
       </div>
 
@@ -435,12 +383,6 @@ export function WorkspaceResultState({
         </div>
       ) : null}
 
-      <OriginalityPanel
-        state={plagState}
-        result={plagResult}
-        onClose={() => setPlagState("idle")}
-      />
-
       <style jsx>{`
         .result-state {
           display: flex;
@@ -531,31 +473,6 @@ export function WorkspaceResultState({
         .action-btn:hover {
           border-color: rgba(124, 58, 237, 0.4);
           color: #f5efe8;
-        }
-        .action-btn.originality {
-          border-color: rgba(147, 197, 253, 0.7);
-          color: rgba(219, 234, 254, 0.95);
-        }
-        .action-btn.originality.checking {
-          opacity: 0.7;
-          cursor: wait;
-        }
-        .action-btn.originality.done {
-          border-color: rgba(34, 197, 94, 0.85);
-          color: rgba(187, 247, 208, 0.95);
-        }
-        .action-btn.originality.error {
-          border-color: rgba(248, 113, 113, 0.85);
-          color: rgba(254, 202, 202, 0.95);
-        }
-        .small-spinner {
-          width: 12px;
-          height: 12px;
-          border-radius: 999px;
-          border: 2px solid rgba(191, 219, 254, 0.3);
-          border-top-color: rgba(129, 140, 248, 0.95);
-          animation: spin 0.8s linear infinite;
-          margin-right: 0.35rem;
         }
         .integrative-result-badge {
           font-family: "Cormorant Garamond", serif;
@@ -711,11 +628,6 @@ export function WorkspaceResultState({
           margin-left: 0.35rem;
           color: #a5b4fc;
           text-decoration: underline;
-        }
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
         }
       `}</style>
     </div>

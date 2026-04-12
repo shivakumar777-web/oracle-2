@@ -4,7 +4,7 @@ import AnalysisModeSwitcher from "./AnalysisModeSwitcher";
 import type { AnalysisMode } from "@/lib/analyse/types";
 import { useMediaQuery } from "@/hooks/analyse/useMediaQuery";
 
-interface PatientContext {
+export interface PatientContext {
   patientId: string;
   age: string;
   gender: string;
@@ -13,6 +13,10 @@ interface PatientContext {
   tobaccoUse: string;
   fastingStatus?: string;
   medications?: string;
+  /** Presenting complaint / symptoms — free text, sent to AI narrative */
+  symptoms: string;
+  /** Past history, comorbidities, timeline — free text, sent to AI narrative */
+  clinicalHistory: string;
 }
 
 interface Props {
@@ -41,6 +45,8 @@ export default function PatientContextForm({
   const [tobaccoUse, setTobaccoUse] = useState("");
   const [fastingStatus, setFastingStatus] = useState("unknown");
   const [medications, setMedications] = useState("");
+  const [symptoms, setSymptoms] = useState("");
+  const [clinicalHistory, setClinicalHistory] = useState("");
   const [collapsed, setCollapsed] = useState(true);
   const [detecting, setDetecting] = useState(false);
 
@@ -54,11 +60,25 @@ export default function PatientContextForm({
       gender,
       location,
       tobaccoUse,
+      symptoms,
+      clinicalHistory,
       ...(isLabReport
         ? { fastingStatus, medications }
         : {}),
     });
-  }, [patientId, age, gender, location, tobaccoUse, fastingStatus, medications, isLabReport, onContextChange]);
+  }, [
+    patientId,
+    age,
+    gender,
+    location,
+    tobaccoUse,
+    symptoms,
+    clinicalHistory,
+    fastingStatus,
+    medications,
+    isLabReport,
+    onContextChange,
+  ]);
 
   const detectLocation = async () => {
     if (!navigator.geolocation) {
@@ -273,6 +293,58 @@ export default function PatientContextForm({
               <option value="F" style={{ background: "var(--void-3)" }}>Female</option>
               <option value="Other" style={{ background: "var(--void-3)" }}>Other</option>
             </select>
+          </div>
+
+          {/* Symptoms & history — free text for LLM correlation */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label className="text-caption" style={{ color: "var(--text-15)", fontSize: 8, marginBottom: 3, display: "block" }}>
+              SYMPTOMS & PRESENTING COMPLAINT
+            </label>
+            <textarea
+              placeholder="e.g. Sudden weakness right arm and leg since this morning, headache, vomiting once…"
+              value={symptoms}
+              onChange={(e) => setSymptoms(e.target.value)}
+              rows={compact ? 3 : 2}
+              style={{
+                ...inputStyle,
+                resize: "vertical",
+                minHeight: compact ? 56 : 44,
+                lineHeight: 1.35,
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(0,196,176,0.3)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--glass-border)"; }}
+            />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label className="text-caption" style={{ color: "var(--text-15)", fontSize: 8, marginBottom: 3, display: "block" }}>
+              CLINICAL HISTORY & CONTEXT
+            </label>
+            <textarea
+              placeholder="e.g. Known hypertension, on aspirin; prior stroke 2019; no diabetes…"
+              value={clinicalHistory}
+              onChange={(e) => setClinicalHistory(e.target.value)}
+              rows={compact ? 3 : 2}
+              style={{
+                ...inputStyle,
+                resize: "vertical",
+                minHeight: compact ? 56 : 44,
+                lineHeight: 1.35,
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(0,196,176,0.3)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--glass-border)"; }}
+            />
+            <p
+              className="font-body"
+              style={{
+                fontSize: 9,
+                color: "var(--text-30)",
+                marginTop: 6,
+                marginBottom: 0,
+                lineHeight: 1.35,
+              }}
+            >
+              Plain language is fine. This text is sent with your scan to the report AI (with age, location, etc.) to tailor interpretation — not stored as a medical record ID.
+            </p>
           </div>
 
           {/* Tobacco / betel — oral cancer risk context */}

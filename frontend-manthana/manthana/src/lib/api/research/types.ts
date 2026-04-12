@@ -1,5 +1,5 @@
 /**
- * Research section — deep research and plagiarism types.
+ * Research section — deep research types.
  */
 
 export interface DeepResearchRequest {
@@ -67,23 +67,3 @@ export type DeepResearchStreamEvent =
       };
     }
   | { type: "error"; message: string };
-
-export interface PlagiarismMatch {
-  matchedSentence: string;
-  source: string;
-  url: string;
-  matchPercent: number;
-  isCitation: boolean;
-}
-
-export interface PlagiarismResult {
-  originalityScore: number;
-  matchedPercent: number;
-  matches: PlagiarismMatch[];
-  sentencesAnalysed: number;
-  sourcesSearched: number;
-  layers: { webSearch: number; vectorDB: number };
-  scanDate: string;
-  note: string;
-  error?: string;
-}

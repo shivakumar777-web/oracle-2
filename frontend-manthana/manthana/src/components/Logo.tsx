@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useId } from "react";
 
 interface LogoProps {
   size?: "hero" | "nav" | "inline";
@@ -28,8 +28,8 @@ function outerTicks() {
         y1={(cy + r0 * Math.sin(a)).toFixed(2)}
         x2={(cx + r1 * Math.cos(a)).toFixed(2)}
         y2={(cy + r1 * Math.sin(a)).toFixed(2)}
-        stroke={maj ? "rgba(212,168,71,.52)" : "rgba(212,168,71,.18)"}
-        strokeWidth={maj ? 1.1 : 0.42}
+        stroke={maj ? "rgba(212,168,71,.58)" : "rgba(212,168,71,.28)"}
+        strokeWidth={maj ? 1.3 : 0.65}
       />
     );
   }
@@ -50,8 +50,8 @@ function innerTicks() {
         y1={(cy + r0 * Math.sin(a)).toFixed(2)}
         x2={(cx + r1 * Math.cos(a)).toFixed(2)}
         y2={(cy + r1 * Math.sin(a)).toFixed(2)}
-        stroke={maj ? "rgba(212,168,71,.4)" : "rgba(212,168,71,.14)"}
-        strokeWidth={maj ? 0.9 : 0.38}
+        stroke={maj ? "rgba(212,168,71,.55)" : "rgba(212,168,71,.30)"}
+        strokeWidth={maj ? 1.1 : 0.60}
       />
     );
   }
@@ -139,96 +139,123 @@ function particleOrbit(radius: number, count: number, speed: number, direction: 
 }
 
 export default function Logo({ size = "nav", animate = true, className = "" }: LogoProps) {
-  const sizeMap = { hero: "clamp(220px,34vw,380px)", nav: "32px", inline: "100px" };
-  const px = sizeMap[size];
   const isHero = size === "hero";
+  const px = size === "nav" ? "32px" : size === "inline" ? "100px" : undefined;
+
+  /* Hero: below md, same rendered scale as typical desktop (~333px), viewport-capped. md+: unchanged. */
+  const heroWidthClass =
+    "w-[min(380px,max(333px,34vw),calc(100vw-2rem))] md:w-[clamp(220px,34vw,380px)]";
+
+  /* Unique defs per instance — duplicate id="ag1" from sidebar + hero breaks url(#…) on mobile WebKit */
+  const uid = useId().replace(/:/g, "_");
+  const lid = {
+    ag1: `mant-ag1-${uid}`,
+    ag2: `mant-ag2-${uid}`,
+    ag3: `mant-ag3-${uid}`,
+    ag4: `mant-ag4-${uid}`,
+    ag5: `mant-ag5-${uid}`,
+    crg: `mant-crg-${uid}`,
+    coh: `mant-coh-${uid}`,
+    amb: `mant-amb-${uid}`,
+    fHalo: `mant-fHalo-${uid}`,
+    fCore: `mant-fCore-${uid}`,
+    fTip: `mant-fTip-${uid}`,
+    fRing: `mant-fRing-${uid}`,
+    epg: `mant-epg-${uid}`,
+    aurora: `mant-aurora-${uid}`,
+  };
 
   return (
     <div
-      className={`${className}`}
-      style={{ width: px, aspectRatio: "1", contain: 'layout style paint' }}
+      className={`${className} ${isHero ? heroWidthClass : "logo-compact"}`}
+      style={
+        isHero
+          ? { aspectRatio: "1" }
+          : { width: px, aspectRatio: "1" }
+      }
     >
       <svg
         viewBox="0 0 260 260"
         xmlns="http://www.w3.org/2000/svg"
         role="img"
         aria-label="MANTHANA — five spiral arms churning to the golden Amrita"
+        colorInterpolationFilters="sRGB"
         style={{ display: "block", width: "100%", height: "100%" }}
       >
         <defs>
           {/* Five arm gradients: teal-aqua tip → rich gold → luminous gold core */}
-          <linearGradient id="ag1" x1="130" y1="35" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+          <linearGradient id={lid.ag1} x1="130" y1="35" x2="130" y2="130" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#3DDBC8" stopOpacity=".96" />
             <stop offset="48%" stopColor="#C8922A" />
             <stop offset="100%" stopColor="#F0D070" />
           </linearGradient>
-          <linearGradient id="ag2" x1="220.4" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+          <linearGradient id={lid.ag2} x1="220.4" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#3DDBC8" stopOpacity=".96" />
             <stop offset="48%" stopColor="#C8922A" />
             <stop offset="100%" stopColor="#F0D070" />
           </linearGradient>
-          <linearGradient id="ag3" x1="185.8" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+          <linearGradient id={lid.ag3} x1="185.8" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#3DDBC8" stopOpacity=".96" />
             <stop offset="48%" stopColor="#C8922A" />
             <stop offset="100%" stopColor="#F0D070" />
           </linearGradient>
-          <linearGradient id="ag4" x1="74.2" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+          <linearGradient id={lid.ag4} x1="74.2" y1="206.9" x2="130" y2="130" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#3DDBC8" stopOpacity=".96" />
             <stop offset="48%" stopColor="#C8922A" />
             <stop offset="100%" stopColor="#F0D070" />
           </linearGradient>
-          <linearGradient id="ag5" x1="39.6" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+          <linearGradient id={lid.ag5} x1="39.6" y1="100.6" x2="130" y2="130" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#3DDBC8" stopOpacity=".96" />
             <stop offset="48%" stopColor="#C8922A" />
             <stop offset="100%" stopColor="#F0D070" />
           </linearGradient>
 
           {/* White-hot core → molten gold → void */}
-          <radialGradient id="crg" cx="50%" cy="50%" r="50%">
+          <radialGradient id={lid.crg} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#FFFFFF" />
             <stop offset="12%" stopColor="#FFFBE0" />
             <stop offset="33%" stopColor="#F8C94A" />
             <stop offset="62%" stopColor="#C0880A" stopOpacity=".66" />
             <stop offset="100%" stopColor="#7A5000" stopOpacity="0" />
           </radialGradient>
-          <radialGradient id="coh" cx="50%" cy="50%" r="50%">
+          <radialGradient id={lid.coh} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#D4A847" stopOpacity=".24" />
             <stop offset="100%" stopColor="#D4A847" stopOpacity="0" />
           </radialGradient>
-          <radialGradient id="amb" cx="50%" cy="50%" r="50%">
+          <radialGradient id={lid.amb} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#00C4B0" stopOpacity=".032" />
             <stop offset="55%" stopColor="#C8922A" stopOpacity=".024" />
             <stop offset="100%" stopColor="transparent" />
           </radialGradient>
 
           {/* Arm glow */}
-          <filter id="fHalo" x="-75%" y="-75%" width="250%" height="250%">
+          <filter id={lid.fHalo} x="-75%" y="-75%" width="250%" height="250%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="5.5" result="b" />
             <feColorMatrix in="b" type="matrix" values=".08 .35 .5 0 .008  .42 .88 .68 0 .06  .28 .76 .88 0 .036  0 0 0 .42 0" result="c" />
             <feMerge><feMergeNode in="c" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
           {/* Core bloom */}
-          <filter id="fCore" x="-300%" y="-300%" width="700%" height="700%">
+          <filter id={lid.fCore} x="-300%" y="-300%" width="700%" height="700%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b1" />
             <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b2" />
             <feMerge><feMergeNode in="b1" /><feMergeNode in="b2" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
           {/* Tip bloom */}
-          <filter id="fTip" x="-500%" y="-500%" width="1100%" height="1100%">
+          <filter id={lid.fTip} x="-500%" y="-500%" width="1100%" height="1100%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b" />
             <feColorMatrix in="b" type="matrix" values="0 .18 .55 0 0  .35 .92 .68 0 .07  .28 .88 .88 0 .055  0 0 0 .68 0" result="c" />
             <feMerge><feMergeNode in="c" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
           {/* Ring soft */}
-          <filter id="fRing"><feGaussianBlur in="SourceGraphic" stdDeviation=".7" /></filter>
+          <filter id={lid.fRing}><feGaussianBlur in="SourceGraphic" stdDeviation=".7" /></filter>
           {/* Energy pulse — radiating rings */}
-          <radialGradient id="epg" cx="50%" cy="50%" r="50%">
+          <radialGradient id={lid.epg} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#C8922A" stopOpacity="0" />
             <stop offset="85%" stopColor="#C8922A" stopOpacity=".15" />
             <stop offset="100%" stopColor="#C8922A" stopOpacity="0" />
           </radialGradient>
           {/* Aurora shimmer gradient — static, no animate */}
-          <linearGradient id="aurora" x1="0" y1="0" x2="260" y2="260" gradientUnits="userSpaceOnUse">
+          <linearGradient id={lid.aurora} x1="0" y1="0" x2="260" y2="260" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#3DDBC8" stopOpacity=".06" />
             <stop offset="50%" stopColor="#C8922A" stopOpacity=".05" />
             <stop offset="100%" stopColor="#6E44FF" stopOpacity=".04" />
@@ -236,16 +263,16 @@ export default function Logo({ size = "nav", animate = true, className = "" }: L
         </defs>
 
         {/* Aurora shimmer field — no boxy edges */}
-        <circle cx="130" cy="130" r="126" fill="url(#aurora)" />
+        <circle cx="130" cy="130" r="126" fill={`url(#${lid.aurora})`} />
         {/* Ambient light field */}
-        <circle cx="130" cy="130" r="128" fill="url(#amb)" />
+        <circle cx="130" cy="130" r="128" fill={`url(#${lid.amb})`} />
 
         {/* ═══ ENERGY PULSE RINGS — sonar-like expansion from center ═══ */}
         {isHero && animate && [80, 100, 120].map((r, i) => (
           <circle
             key={`ep${i}`}
             cx="130" cy="130" r={r}
-            fill="none" stroke="url(#epg)"
+            fill="none" stroke={`url(#${lid.epg})`}
             strokeWidth=".6"
             opacity="0"
             style={{
@@ -269,7 +296,7 @@ export default function Logo({ size = "nav", animate = true, className = "" }: L
           {outerTicks()}
         </g>
         {/* Outer structural ring */}
-        <circle cx="130" cy="130" r="112.5" fill="none" stroke="rgba(200,146,42,.12)" strokeWidth=".55" filter="url(#fRing)" />
+        <circle cx="130" cy="130" r="112.5" fill="none" stroke="rgba(200,146,42,.22)" strokeWidth=".85" filter={`url(#${lid.fRing})`} />
         {/* Outer orbit dash CW 52s */}
         <circle cx="130" cy="130" r="101" fill="none" stroke="rgba(0,196,176,.16)" strokeWidth=".72" strokeDasharray="5 12"
           style={{ transformOrigin: "130px 130px", animation: "rcw 52s linear infinite" }} />
@@ -280,10 +307,10 @@ export default function Logo({ size = "nav", animate = true, className = "" }: L
         </g>
 
         {/* Mid boundary ring */}
-        <circle cx="130" cy="130" r="59" fill="none" stroke="rgba(212,168,71,.07)" strokeWidth=".5" strokeDasharray="2 7.5" />
+        <circle cx="130" cy="130" r="59" fill="none" stroke="rgba(212,168,71,.18)" strokeWidth=".70" strokeDasharray="2 7.5" />
 
         {/* Ghost spokes */}
-        <g opacity=".038" stroke="#FFF" strokeWidth=".4">
+        <g opacity=".12" stroke="rgba(212,168,71,.65)" strokeWidth=".55">
           <line x1="130" y1="35" x2="130" y2="130" />
           <line x1="220.4" y1="100.6" x2="130" y2="130" />
           <line x1="185.8" y1="206.9" x2="130" y2="130" />
@@ -293,15 +320,15 @@ export default function Logo({ size = "nav", animate = true, className = "" }: L
 
         {/* Secondary echo arms — very slow CW drift (35s) */}
         <g opacity=".14" style={{ transformOrigin: "130px 130px", animation: "rcw 35s linear infinite" }}>
-          <path d="M130,35 C184,78 170,127 130,130" fill="none" stroke="url(#ag1)" strokeWidth=".45" strokeLinecap="round" />
-          <path d="M220.4,100.6 C184,170 140,165 130,130" fill="none" stroke="url(#ag2)" strokeWidth=".45" strokeLinecap="round" />
-          <path d="M185.8,206.9 C113,200 100,151 130,130" fill="none" stroke="url(#ag3)" strokeWidth=".45" strokeLinecap="round" />
-          <path d="M74.2,206.9 C59,133 100,107 130,130" fill="none" stroke="url(#ag4)" strokeWidth=".45" strokeLinecap="round" />
-          <path d="M39.6,100.6 C108,64 143,94 130,130" fill="none" stroke="url(#ag5)" strokeWidth=".45" strokeLinecap="round" />
+          <path d="M130,35 C184,78 170,127 130,130" fill="none" stroke={`url(#${lid.ag1})`} strokeWidth=".45" strokeLinecap="round" />
+          <path d="M220.4,100.6 C184,170 140,165 130,130" fill="none" stroke={`url(#${lid.ag2})`} strokeWidth=".45" strokeLinecap="round" />
+          <path d="M185.8,206.9 C113,200 100,151 130,130" fill="none" stroke={`url(#${lid.ag3})`} strokeWidth=".45" strokeLinecap="round" />
+          <path d="M74.2,206.9 C59,133 100,107 130,130" fill="none" stroke={`url(#${lid.ag4})`} strokeWidth=".45" strokeLinecap="round" />
+          <path d="M39.6,100.6 C108,64 143,94 130,130" fill="none" stroke={`url(#${lid.ag5})`} strokeWidth=".45" strokeLinecap="round" />
         </g>
 
-        {/* ARM HALOS — CCW stir (16s) — NO FILTER on rotating group */}
-        <g opacity=".18" style={{ transformOrigin: "130px 130px", animation: "rccw 16s linear infinite" }}>
+        {/* ARM HALOS — CCW stir (16s) — teal glow beneath arms */}
+        <g opacity=".10" style={{ transformOrigin: "130px 130px", animation: "rccw 16s linear infinite" }}>
           <path d="M130,35 C173.84,86.16 158,130 130,130" fill="none" stroke="#3DDBC8" strokeWidth="5" strokeLinecap="round" />
           <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="#3DDBC8" strokeWidth="5" strokeLinecap="round" />
           <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="#3DDBC8" strokeWidth="5" strokeLinecap="round" />
@@ -309,13 +336,18 @@ export default function Logo({ size = "nav", animate = true, className = "" }: L
           <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130" fill="none" stroke="#3DDBC8" strokeWidth="5" strokeLinecap="round" />
         </g>
 
-        {/* MAIN SPIRAL ARMS — CW stir (22s) — NO FILTER on rotating group */}
+        {/* MAIN SPIRAL ARMS — CW stir (22s) — solid gold underlay + gradient (WebKit-safe) */}
         <g style={{ transformOrigin: "130px 130px", animation: "rcw 22s linear infinite" }}>
-          <path d="M130,35 C173.84,86.16 158,130 130,130" fill="none" stroke="url(#ag1)" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="url(#ag2)" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="url(#ag3)" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130" fill="none" stroke="url(#ag4)" strokeWidth="2.2" strokeLinecap="round" />
-          <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130" fill="none" stroke="url(#ag5)" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M130,35 C173.84,86.16 158,130 130,130" fill="none" stroke="#C8922A" strokeWidth="3.6" strokeLinecap="round" />
+          <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke="#C8922A" strokeWidth="3.6" strokeLinecap="round" />
+          <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke="#C8922A" strokeWidth="3.6" strokeLinecap="round" />
+          <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130" fill="none" stroke="#C8922A" strokeWidth="3.6" strokeLinecap="round" />
+          <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130" fill="none" stroke="#C8922A" strokeWidth="3.6" strokeLinecap="round" />
+          <path d="M130,35 C173.84,86.16 158,130 130,130" fill="none" stroke={`url(#${lid.ag1})`} strokeWidth="3.2" strokeLinecap="round" />
+          <path d="M220.4,100.6 C185.24,158.15 138.65,156.63 130,130" fill="none" stroke={`url(#${lid.ag2})`} strokeWidth="3.2" strokeLinecap="round" />
+          <path d="M185.8,206.9 C120.36,191.24 107.35,146.47 130,130" fill="none" stroke={`url(#${lid.ag3})`} strokeWidth="3.2" strokeLinecap="round" />
+          <path d="M74.2,206.9 C68.76,139.64 107.35,113.53 130,130" fill="none" stroke={`url(#${lid.ag4})`} strokeWidth="3.2" strokeLinecap="round" />
+          <path d="M39.6,100.6 C101.85,74.76 138.65,103.37 130,130" fill="none" stroke={`url(#${lid.ag5})`} strokeWidth="3.2" strokeLinecap="round" />
         </g>
 
         {/* TIP NODES — NO FILTER, just glow color */}
@@ -335,24 +367,24 @@ export default function Logo({ size = "nav", animate = true, className = "" }: L
 
         {/* Outer pentagon — sacred enclosure */}
         <polygon points="130,100 158.53,120.73 147.63,154.27 112.37,154.27 101.47,120.73"
-          fill="none" stroke="rgba(212,168,71,.22)" strokeWidth=".68" />
+          fill="none" stroke="rgba(212,168,71,.45)" strokeWidth=".90" />
 
         {/* 8 Lotus petals — inner mandala */}
-        <g opacity=".09" fill="none" stroke="rgba(212,168,71,1)" strokeWidth=".6">
+        <g opacity=".22" fill="none" stroke="rgba(212,168,71,1)" strokeWidth=".85">
           {[0, 45, 90, 135, 180, 225, 270, 315].map((r) => (
             <path key={r} d="M130,120 C140,111 142,96 130,86 C118,96 120,111 130,120Z" transform={`rotate(${r},130,130)`} />
           ))}
         </g>
 
         {/* Star of David / hexagram — union of ancient and modern */}
-        <g opacity=".14" fill="none" stroke="rgba(0,196,176,1)" strokeWidth=".64">
+        <g opacity=".28" fill="none" stroke="rgba(0,196,176,1)" strokeWidth=".80">
           <polygon points="130,106 151.65,143.5 108.35,143.5" />
           <polygon points="130,154 151.65,116.5 108.35,116.5" />
         </g>
 
         {/* Inner dashed spin ring CCW 25s */}
         <circle cx="130" cy="130" r="34.5" fill="none"
-          stroke="rgba(212,168,71,.18)" strokeWidth=".66" strokeDasharray="3 8.5"
+          stroke="rgba(212,168,71,.35)" strokeWidth=".90" strokeDasharray="3 8.5"
           style={{ transformOrigin: "130px 130px", animation: "rccw 25s linear infinite" }} />
 
         {/* Pearl ring: 8 pearls CW 18s at r=50 */}
@@ -377,13 +409,13 @@ export default function Logo({ size = "nav", animate = true, className = "" }: L
         </g>
 
         {/* Core — HEARTBEAT outer halo (lub-dub rhythm, 1.2s) */}
-        <circle cx="130" cy="130" r="30" fill="url(#coh)"
+        <circle cx="130" cy="130" r="30" fill={`url(#${lid.coh})`}
           style={{ transformOrigin: "130px 130px", animation: "heartbeat-outer 1.2s ease-in-out infinite" }} />
         {/* Core — HEARTBEAT mid (offset by .06s for the dub) */}
-        <circle cx="130" cy="130" r="18" fill="url(#crg)"
+        <circle cx="130" cy="130" r="18" fill={`url(#${lid.crg})`}
           style={{ transformOrigin: "130px 130px", animation: "heartbeat 1.2s .06s ease-in-out infinite" }} />
         {/* Core bright — bloom synced to heartbeat */}
-        <circle cx="130" cy="130" r="12" fill="url(#crg)" filter="url(#fCore)"
+        <circle cx="130" cy="130" r="12" fill={`url(#${lid.crg})`} filter={`url(#${lid.fCore})`}
           style={{ transformOrigin: "130px 130px", animation: "heartbeat 1.2s .03s ease-in-out infinite" }} />
 
         {/* ═══ HYPNOTIC CORE — layered light rings ═══ */}

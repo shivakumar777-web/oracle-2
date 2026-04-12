@@ -11,6 +11,11 @@ import type {
 import { analyzeImage, requestUnifiedReport } from "@/lib/analyse/api";
 import { AnalysisCancelledError } from "@/lib/analyse/errors";
 import { randomId } from "@/lib/analyse/random-id";
+import { LABS_CLOUD_AI_PRIMARY } from "@/lib/analyse/display-models";
+import { useToast } from "@/hooks/useToast";
+import { preflightLabsScan, recordLabsScan } from "@/lib/labs/client";
+import { useProductAccess } from "@/components/ProductAccessProvider";
+import { normalizeSubscriptionPlan } from "@/lib/product-access";
 
 const INITIAL_SESSION: MultiModelSession = {
   id: "",
@@ -24,6 +29,8 @@ const INITIAL_SESSION: MultiModelSession = {
 };
 
 export function useMultiModelAnalysis() {
+  const { addToast } = useToast();
+  const { plan, status } = useProductAccess();
   const [session, setSession] = useState<MultiModelSession>(INITIAL_SESSION);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -122,12 +129,26 @@ export function useMultiModelAnalysis() {
           const file = upload.files[0];
           if (!file) continue;
 
+          const pf = await preflightLabsScan(upload.modality);
+          if (!pf.allowed) {
+            const msg =
+              ("message" in pf && typeof pf.message === "string" && pf.message) ||
+              "Labs quota does not allow this scan right now.";
+            addToast(`${upload.modality}: ${msg}`, "warning", 8000);
+            continue;
+          }
+
+          const subscriptionTier =
+            status === "active"
+              ? normalizeSubscriptionPlan(plan)
+              : "free";
           const result = await analyzeImage(
             file,
             upload.modality,
             undefined,
             undefined,
             undefined,
+            subscriptionTier,
             ctrl.signal
           );
 
@@ -138,6 +159,12 @@ export function useMultiModelAnalysis() {
             ...s,
             individualResults: [...results],
           }));
+
+          void recordLabsScan(upload.modality).then((rec) => {
+            if (!rec.ok && rec.error) {
+              addToast(rec.error, "warning", 7000);
+            }
+          });
         } catch (err) {
           if (err instanceof AnalysisCancelledError || ctrl.signal.aborted) return;
 
@@ -176,6 +203,21 @@ export function useMultiModelAnalysis() {
             individualResults: [...results],
           }));
         }
+      }
+
+      if (results.length === 0) {
+        addToast(
+          "No scans completed — check Labs quota or errors for each modality.",
+          "warning",
+          8000
+        );
+        setSession((s) => ({
+          ...s,
+          stage: "confirming",
+          copilotActivated: false,
+          currentProcessingIndex: -1,
+        }));
+        return;
       }
 
       // All individual analyses done → request unified report
@@ -223,7 +265,7 @@ export function useMultiModelAnalysis() {
             results.map((r) => r.modality).join(" and ") +
             " show complementary patterns that strengthen the diagnostic assessment. No contradictory findings were observed across modalities.",
           confidence: "high",
-          models_used: ["Manthana Report AI", ...results.flatMap((r) => r.result.models_used)],
+          models_used: [LABS_CLOUD_AI_PRIMARY, ...results.flatMap((r) => r.result.models_used)],
           processing_time_sec: results.reduce((sum, r) => sum + r.result.processing_time_sec, 0) + 3.2,
         };
 

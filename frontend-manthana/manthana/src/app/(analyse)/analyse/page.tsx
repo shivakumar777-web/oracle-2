@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import TopBar from "@/components/analyse/layout/TopBar";
 import ModalityBar from "@/components/analyse/layout/ModalityBar";
@@ -11,26 +11,44 @@ import ViewportControls from "@/components/analyse/scanner/ViewportControls";
 import ThumbnailStrip from "@/components/analyse/scanner/ThumbnailStrip";
 import IntelligencePanel from "@/components/analyse/findings/IntelligencePanel";
 import UnifiedReportPanel from "@/components/analyse/findings/UnifiedReportPanel";
-import PatientContextForm from "@/components/analyse/shared/PatientContextForm";
+import PatientContextForm, {
+  type PatientContext,
+} from "@/components/analyse/shared/PatientContextForm";
+import ECGPatientContextForm from "@/components/analyse/ecg/ECGPatientContextForm";
 import { ConsentGate } from "@/components/analyse/shared/ConsentGate";
 import MultiModelSelector from "@/components/analyse/scanner/MultiModelSelector";
-import { authClient } from "@/lib/auth-client";
 import MultiModelUploadWizard from "@/components/analyse/scanner/MultiModelUploadWizard";
 import MultiModelProgress from "@/components/analyse/scanner/MultiModelProgress";
+import PremiumCTRegionSelector from "@/components/analyse/PremiumCTRegionSelector";
+import PremiumCTProgressPanel from "@/components/analyse/PremiumCTProgressPanel";
 import CopilotActivation from "@/components/analyse/scanner/CopilotActivation";
 import BottomSheet from "@/components/analyse/shared/BottomSheet";
 import { useAnalysis } from "@/hooks/analyse/useAnalysis";
+import { useGatewayAuthBridge } from "@/hooks/analyse/useGatewayAuthBridge";
 import { useMultiModelAnalysis } from "@/hooks/analyse/useMultiModelAnalysis";
 import { useMediaQuery } from "@/hooks/analyse/useMediaQuery";
+import { useToast } from "@/hooks/useToast";
 import { saveEntry, patchEntry } from "@/lib/analyse/history";
 import type { HistoryEntry } from "@/lib/analyse/history";
-import type { AnalysisMode, HeatmapState, DicomMetadataType } from "@/lib/analyse/types";
+import type {
+  AnalysisMode,
+  HeatmapState,
+  DicomMetadataType,
+  Finding,
+} from "@/lib/analyse/types";
 import {
   buildClinicalNotesForApi,
   buildPatientContextJsonForApi,
 } from "@/lib/analyse/clinical-notes";
 import { getUploadAcceptTypes } from "@/lib/analyse/constants";
-import { askCoPilot } from "@/lib/analyse/api";
+import {
+  storeOracleLabsHandoff,
+  formatSingleLabsReportForOracle,
+  formatUnifiedLabsReportForOracle,
+  DEFAULT_ORACLE_FOLLOWUP_FROM_LABS,
+  MEDGEMMA_ORACLE_FOLLOWUP_FROM_LABS,
+  ORACLE_LABS_HANDOFF_QUERY,
+} from "@/lib/analyse/oracle-handoff";
 import {
   buildCtPatientContextJson,
   gatewayModalityForCtRegion,
@@ -39,6 +57,13 @@ import {
   ctBodyRegionForProductModality,
 } from "@/lib/analyse/ct-upload-wizard";
 import { randomId } from "@/lib/analyse/random-id";
+import {
+  buildEcgApiPatientContextJson,
+  createInitialEcgScannerContext,
+  ecgFormHasRequiredDemographics,
+  type EcgScannerContext,
+} from "@/lib/analyse/ecgPatientContext";
+import type { PremiumCtRegion } from "@/lib/analyse/premium-constants";
 import dynamic from "next/dynamic";
 
 const isCtUiModality = (m: string) => m === "ct" || isCtProductModality(m);
@@ -48,6 +73,9 @@ const WorklistPanel = dynamic(() => import("@/components/analyse/pacs/WorklistPa
 const PacsSettings = dynamic(() => import("@/components/analyse/pacs/PacsSettings"), { ssr: false });
 
 export default function ScannerPage() {
+  useGatewayAuthBridge();
+  const router = useRouter();
+  const { addToast } = useToast();
   const {
     stage,
     imageUrl,
@@ -66,6 +94,9 @@ export default function ScannerPage() {
     reset,
     analysisElapsedMs,
     retryImage,
+    medgemmaChestEnabled,
+    setMedgemmaChestEnabled,
+    submitMedgemmaAnswers,
   } = useAnalysis();
 
   const {
@@ -82,23 +113,23 @@ export default function ScannerPage() {
 
   const addMoreRef = useRef<HTMLInputElement>(null);
   const addCameraRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
-
-  // ── Better Auth Session ──
-  const { data: session, isPending: sessionLoading } = authClient.useSession();
-  const isAuthenticated = !!session?.user;
 
   const [cmdOpen, setCmdOpen] = useState(false);
   const [scanNumber, setScanNumber] = useState(1);
-  const [patientCtx, setPatientCtx] = useState({
+  const [patientCtx, setPatientCtx] = useState<PatientContext>({
     patientId: "ANONYMOUS-001",
     age: "",
     gender: "",
     location: "",
     tobaccoUse: "",
+    symptoms: "",
+    clinicalHistory: "",
     fastingStatus: "unknown",
     medications: "",
   });
+  const [ecgScannerContext, setEcgScannerContext] = useState<EcgScannerContext>(() =>
+    createInitialEcgScannerContext(1)
+  );
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("single");
   const [heatmapState, setHeatmapState] = useState<HeatmapState>({
     visible: false,
@@ -107,19 +138,38 @@ export default function ScannerPage() {
     colorScheme: "jet",
   });
   const [dicomFiles, setDicomFiles] = useState<File[]>([]);
+  const [premiumCtRegion, setPremiumCtRegion] =
+    useState<PremiumCtRegion>("full_body");
   /** CT flow: wizard output + optional scanner calibration (sent in patient_context_json). */
   const [ctConfig, setCtConfig] = useState<CtWizardState | null>(null);
   const [pacsOpen, setPacsOpen] = useState(false);
   const [pacsTab, setPacsTab] = useState<"studies" | "worklist" | "settings">("studies");
   const { isMobile, isTablet, isDesktop } = useMediaQuery();
   const compact = isMobile || isTablet;
-  const isScanning = !["idle", "complete", "error"].includes(stage);
+  const isScanning = !["idle", "complete", "error", "medgemma_questions"].includes(stage);
+  const activePatientId = modality === "ecg" ? ecgScannerContext.patientId : patientCtx.patientId;
+  const activeScan = images[activeIndex];
+
+  const medgemmaQaPanel = useMemo(() => {
+    if (stage !== "medgemma_questions" || !activeScan?.medgemmaQuestions?.length) return undefined;
+    const id = activeScan.id;
+    return {
+      questions: activeScan.medgemmaQuestions,
+      impressionDraft: activeScan.medgemmaDraft?.impression_draft,
+      onSubmit: (answers: Record<string, string>) => {
+        void submitMedgemmaAnswers(id, answers, false);
+      },
+      onSkipAll: () => {
+        void submitMedgemmaAnswers(id, {}, true);
+      },
+    };
+  }, [stage, activeScan, submitMedgemmaAnswers]);
 
   const [consentGiven, setConsentGiven] = useState(false);
-  const [copilotQuestion, setCopilotQuestion] = useState<string | null>(null);
-  const [copilotAnswer, setCopilotAnswer] = useState<string | null>(null);
-  const [copilotLoading, setCopilotLoading] = useState(false);
-  const [copilotError, setCopilotError] = useState<string | null>(null);
+  /** Active Pro (not Plus): file inputs omit video extensions for 2D-only policy. */
+  const [proLabs2dOnly, setProLabs2dOnly] = useState(false);
+  /** Mobile: user scrolled consent — tuck Analysis Findings peek off-screen so CTAs aren’t covered. */
+  const [mobileFindingsTuckedForConsent, setMobileFindingsTuckedForConsent] = useState(false);
 
   // Stable session id for this scan — reset with each new scan
   const sessionIdRef = useRef<string>(randomId());
@@ -143,9 +193,6 @@ export default function ScannerPage() {
     setDicomFiles([]);
     setCtConfig(null);
     setScanNumber((n) => n + 1);
-    setCopilotQuestion(null);
-    setCopilotAnswer(null);
-    setCopilotError(null);
     sessionIdRef.current = randomId();
   }, [reset, resetMultiModel]);
 
@@ -154,6 +201,29 @@ export default function ScannerPage() {
       setCtConfig(null);
     }
   }, [modality]);
+
+  useEffect(() => {
+    if (modality === "auto") setModality("xray");
+  }, [modality, setModality]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/razorpay/checkout");
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { labsUsage?: { pro2dOnly?: boolean } };
+        if (!cancelled) {
+          setProLabs2dOnly(data.labsUsage?.pro2dOnly === true);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── History: save draft when files are first uploaded ──
   const saveHistoryDraft = useCallback(
@@ -180,7 +250,7 @@ export default function ScannerPage() {
       type Sev = "critical" | "warning" | "info" | "clear";
       const order: Sev[] = ["critical", "warning", "info", "clear"];
       const topSeverity: Sev = result.findings.reduce<Sev>(
-        (worst, f) =>
+        (worst: Sev, f: Finding) =>
           order.indexOf(f.severity as Sev) < order.indexOf(worst) ? (f.severity as Sev) : worst,
         "clear"
       );
@@ -196,23 +266,50 @@ export default function ScannerPage() {
 
   const resolveAnalysisParams = useCallback(
     (files: File[]) => {
+      if (modality === "ecg") {
+        const notes = buildClinicalNotesForApi({
+          age: ecgScannerContext.age,
+          gender: ecgScannerContext.gender,
+          location: ecgScannerContext.location,
+          tobaccoUse: ecgScannerContext.tobaccoUse,
+          symptoms: ecgScannerContext.symptoms,
+          clinicalHistory: ecgScannerContext.clinicalHistory,
+          medications: ecgScannerContext.medications,
+          fastingStatus: ecgScannerContext.fastingStatus,
+        });
+        const pctx = buildEcgApiPatientContextJson(ecgScannerContext);
+        return { notes, pctx };
+      }
       const notes = buildClinicalNotesForApi(patientCtx);
+      const basePatientJson = buildPatientContextJsonForApi(patientCtx);
       let pctx: Record<string, unknown> | undefined;
       if (modality === "dermatology") {
-        pctx = buildPatientContextJsonForApi(patientCtx);
+        pctx = basePatientJson;
+      } else if (modality === "premium_ct_unified") {
+        pctx = {
+          ...basePatientJson,
+          premium_ct: {
+            vista_region_preference: premiumCtRegion,
+            strict_3d_volumetric_required: true,
+            multi_step_processing: true,
+          },
+        };
       } else if (isCtUiModality(modality) && ctConfig) {
-        const base = buildPatientContextJsonForApi(patientCtx);
         const lockedWizard = {
           ...ctConfig,
           region: isCtProductModality(modality)
             ? ctBodyRegionForProductModality(modality)
             : ctConfig.region,
         };
-        pctx = buildCtPatientContextJson(base, lockedWizard, files);
+        pctx = buildCtPatientContextJson(basePatientJson, lockedWizard, files);
+      } else {
+        // All other modalities: send structured context when any field is set (symptoms, age, region, etc.)
+        // so cloud narrative LLMs receive the same clinical story as CT/derm flows.
+        pctx = basePatientJson;
       }
       return { notes, pctx };
     },
-    [modality, ctConfig, patientCtx]
+    [modality, ctConfig, patientCtx, ecgScannerContext, premiumCtRegion]
   );
 
   const showCtWizard =
@@ -221,12 +318,18 @@ export default function ScannerPage() {
   const ctFileAccept =
     isCtUiModality(modality) && ctConfig && ctConfig.upload_path === "image"
       ? "image/jpeg,image/png,.jpg,.jpeg,.png"
-      : getUploadAcceptTypes(isCtUiModality(modality) ? "ct_abdomen" : modality);
+      : getUploadAcceptTypes(isCtUiModality(modality) ? "ct_abdomen" : modality, {
+          pro2dOnly: proLabs2dOnly,
+        });
 
   // Handle file drop/upload -> start analysis + save draft
   const handleFile = useCallback(
     (files: File[]) => {
-      if (!isAuthenticated || !consentGiven) {
+      if (!consentGiven) {
+        return;
+      }
+      if (modality === "ecg" && !ecgFormHasRequiredDemographics(ecgScannerContext.ecgForm)) {
+        addToast("ECG: enter age and sex in section 1 before uploading.", "warning");
         return;
       }
       // Check if DICOM — store separately for viewer
@@ -239,19 +342,50 @@ export default function ScannerPage() {
         modality === "ct" && ctConfig ? gatewayModalityForCtRegion(ctConfig.region) : undefined;
       const historyMod = analyzeModalityForApi ?? modality;
       addFiles(files, modality, notes || undefined, pctx, analyzeModalityForApi);
-      saveHistoryDraft(files, historyMod, patientCtx.patientId);
+      saveHistoryDraft(files, historyMod, activePatientId);
     },
-    [addFiles, modality, ctConfig, resolveAnalysisParams, saveHistoryDraft, patientCtx.patientId, isAuthenticated, consentGiven]
+    [
+      addFiles,
+      modality,
+      ctConfig,
+      resolveAnalysisParams,
+      saveHistoryDraft,
+      activePatientId,
+      consentGiven,
+      ecgScannerContext.ecgForm,
+      addToast,
+    ]
   );
 
   // Auto-fill patient context from DICOM metadata
-  const handleDicomMetadata = useCallback((meta: DicomMetadataType) => {
-    setPatientCtx((prev) => ({
-      ...prev,
-      age: meta.patientAge ? meta.patientAge.replace(/\D/g, "") : prev.age,
-      gender: meta.patientSex === "M" ? "male" : meta.patientSex === "F" ? "female" : prev.gender,
-    }));
-  }, []);
+  const handleDicomMetadata = useCallback(
+    (meta: DicomMetadataType) => {
+      const ageDigits = meta.patientAge ? meta.patientAge.replace(/\D/g, "") : "";
+      const sexMf = meta.patientSex === "M" ? "M" : meta.patientSex === "F" ? "F" : "";
+      setPatientCtx((prev) => ({
+        ...prev,
+        age: ageDigits || prev.age,
+        gender:
+          meta.patientSex === "M" ? "male" : meta.patientSex === "F" ? "female" : prev.gender,
+      }));
+      if (modality === "ecg") {
+        setEcgScannerContext((prev) => ({
+          ...prev,
+          age: ageDigits || prev.age,
+          gender: meta.patientSex === "M" ? "male" : meta.patientSex === "F" ? "female" : prev.gender,
+          ecgForm: {
+            ...prev.ecgForm,
+            demographics: {
+              ...prev.ecgForm.demographics,
+              age: ageDigits || prev.ecgForm.demographics.age,
+              sex: sexMf || prev.ecgForm.demographics.sex,
+            },
+          },
+        }));
+      }
+    },
+    [modality]
+  );
 
   // Handle Add More from thumbnail strip
   const handleAddFiles = useCallback(() => {
@@ -266,7 +400,20 @@ export default function ScannerPage() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files || []);
       if (files.length > 0) {
-        if (!isAuthenticated || !consentGiven) {
+        if (!consentGiven) {
+          e.target.value = "";
+          return;
+        }
+        if (modality === "premium_ct_unified") {
+          addToast(
+            "Premium 3D CT accepts DICOM ZIP or NIfTI only. Camera uploads are disabled.",
+            "warning"
+          );
+          e.target.value = "";
+          return;
+        }
+        if (modality === "ecg" && !ecgFormHasRequiredDemographics(ecgScannerContext.ecgForm)) {
+          addToast("ECG: enter age and sex in section 1 before uploading.", "warning");
           e.target.value = "";
           return;
         }
@@ -275,18 +422,33 @@ export default function ScannerPage() {
           modality === "ct" && ctConfig ? gatewayModalityForCtRegion(ctConfig.region) : undefined;
         const historyMod = analyzeModalityForApi ?? modality;
         addFiles(files, modality, notes || undefined, pctx, analyzeModalityForApi);
-        saveHistoryDraft(files, historyMod, patientCtx.patientId);
+        saveHistoryDraft(files, historyMod, activePatientId);
       }
       e.target.value = "";
     },
-    [addFiles, modality, ctConfig, resolveAnalysisParams, saveHistoryDraft, patientCtx.patientId, isAuthenticated, consentGiven]
+    [
+      addFiles,
+      modality,
+      ctConfig,
+      resolveAnalysisParams,
+      saveHistoryDraft,
+      activePatientId,
+      consentGiven,
+      ecgScannerContext.ecgForm,
+      addToast,
+    ]
   );
 
   const handleCameraChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-        if (!isAuthenticated || !consentGiven) {
+        if (!consentGiven) {
+          e.target.value = "";
+          return;
+        }
+        if (modality === "ecg" && !ecgFormHasRequiredDemographics(ecgScannerContext.ecgForm)) {
+          addToast("ECG: enter age and sex in section 1 before uploading.", "warning");
           e.target.value = "";
           return;
         }
@@ -295,38 +457,77 @@ export default function ScannerPage() {
           modality === "ct" && ctConfig ? gatewayModalityForCtRegion(ctConfig.region) : undefined;
         const historyMod = analyzeModalityForApi ?? modality;
         addFiles([file], modality, notes || undefined, pctx, analyzeModalityForApi);
-        saveHistoryDraft([file], historyMod, patientCtx.patientId);
+        saveHistoryDraft([file], historyMod, activePatientId);
       }
       e.target.value = "";
     },
-    [addFiles, modality, ctConfig, resolveAnalysisParams, saveHistoryDraft, patientCtx.patientId, isAuthenticated, consentGiven]
+    [
+      addFiles,
+      modality,
+      ctConfig,
+      resolveAnalysisParams,
+      saveHistoryDraft,
+      activePatientId,
+      consentGiven,
+      ecgScannerContext.ecgForm,
+      addToast,
+    ]
   );
 
   // Multi-model copilot activation
   const handleActivateCopilot = useCallback(() => {
-    activateCopilot(patientCtx.patientId);
-  }, [activateCopilot, patientCtx.patientId]);
+    activateCopilot(activePatientId);
+  }, [activateCopilot, activePatientId]);
 
-  const handleAskAI = useCallback(async () => {
-    if (!result) return;
-    const q =
-      copilotQuestion && copilotQuestion.trim().length > 0
-        ? copilotQuestion.trim()
-        : "Summarise the key imaging findings and impression for this case in plain language for a referring clinician.";
-    setCopilotLoading(true);
-    setCopilotError(null);
-    try {
-      const answer = await askCoPilot(q, result);
-      setCopilotAnswer(answer);
-      setCopilotQuestion(q);
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "AI Co-Pilot is temporarily unavailable.";
-      setCopilotError(msg);
-    } finally {
-      setCopilotLoading(false);
+  const handleOpenOracleFromLabs = useCallback(() => {
+    const unified = multiSession.unifiedResult;
+    const useUnified = analysisMode === "multi" && unified;
+
+    if (useUnified) {
+      const reportMarkdown = formatUnifiedLabsReportForOracle(unified, activePatientId);
+      storeOracleLabsHandoff({
+        reportMarkdown,
+        suggestedFollowUp: DEFAULT_ORACLE_FOLLOWUP_FROM_LABS,
+        scanKind: "multi",
+        labsModalityLabel: unified.modalities_analyzed?.join(", ") || "multi-modality",
+        patientId: activePatientId,
+        labsSessionId: sessionIdRef.current,
+      });
+      router.push(`/?mode=m5&domain=m5&${ORACLE_LABS_HANDOFF_QUERY}=1`);
+      return;
     }
-  }, [result, copilotQuestion]);
+
+    if (!result) return;
+    const reportMarkdown = formatSingleLabsReportForOracle(result, {
+      uiModalityId: detectedModality ?? modality,
+      patientId: activePatientId,
+    });
+    const st = result.structures;
+    const isMedgemmaFlow =
+      typeof st === "object" &&
+      st !== null &&
+      !Array.isArray(st) &&
+      (st as Record<string, unknown>).medgemma_cxr_flow === true;
+    storeOracleLabsHandoff({
+      reportMarkdown,
+      suggestedFollowUp: isMedgemmaFlow
+        ? MEDGEMMA_ORACLE_FOLLOWUP_FROM_LABS
+        : DEFAULT_ORACLE_FOLLOWUP_FROM_LABS,
+      scanKind: "single",
+      labsModalityLabel: modality,
+      patientId: activePatientId,
+      labsSessionId: sessionIdRef.current,
+    });
+    router.push(`/?mode=m5&domain=m5&${ORACLE_LABS_HANDOFF_QUERY}=1`);
+  }, [
+    analysisMode,
+    multiSession.unifiedResult,
+    result,
+    detectedModality,
+    modality,
+    activePatientId,
+    router,
+  ]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -388,37 +589,20 @@ export default function ScannerPage() {
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
+        height: "100dvh",
         overflow: "hidden",
       }}
     >
-      {/* ─── LOADING STATE ─── */}
-      {sessionLoading && (
-        <div className="fixed inset-0 bg-[#020610] flex items-center justify-center z-50">
-          <div className="text-cream/50">Loading...</div>
-        </div>
-      )}
-
-      {/* ─── NOT AUTHENTICATED (middleware handles redirect, this is fallback) ─── */}
-      {!sessionLoading && !isAuthenticated && (
-        <div className="fixed inset-0 bg-[#020610] flex items-center justify-center z-50">
-          <div className="text-center">
-            <p className="text-cream/70 mb-4">Please sign in to access Manthana Labs</p>
-            <button
-              onClick={() => router.push("/sign-in?callbackUrl=/analyse")}
-              className="py-3 px-6 rounded-lg font-ui text-sm tracking-[0.15em] uppercase bg-gold/20 border border-gold/40 text-gold-h hover:bg-gold/30 hover:border-gold/60 transition-all"
-            >
-              Sign In
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── CONSENT GATE ─── */}
-      {isAuthenticated && !consentGiven && (
+      {/* ─── CONSENT GATE (no separate Labs sign-in; app auth is global elsewhere if used) ─── */}
+      {!consentGiven && (
         <ConsentGate
+          onConsentBodyScroll={(top) => {
+            if (top > 28) setMobileFindingsTuckedForConsent(true);
+            else if (top <= 6) setMobileFindingsTuckedForConsent(false);
+          }}
           onAccept={(pid) => {
             setConsentGiven(true);
+            setMobileFindingsTuckedForConsent(false);
             setPatientCtx((prev) => ({
               ...prev,
               patientId: pid || prev.patientId,
@@ -473,14 +657,74 @@ export default function ScannerPage() {
               borderBottom: "none",
             }}
           >
-            <PatientContextForm
-              scanNumber={scanNumber}
-              onContextChange={setPatientCtx}
-              analysisMode={analysisMode}
-              onAnalysisModeChange={handleModeChange}
-              modality={modality}
-            />
+            {modality === "ecg" ? (
+              <ECGPatientContextForm
+                scanNumber={scanNumber}
+                onContextChange={setEcgScannerContext}
+                analysisMode={analysisMode}
+                onAnalysisModeChange={handleModeChange}
+              />
+            ) : (
+              <PatientContextForm
+                scanNumber={scanNumber}
+                onContextChange={setPatientCtx}
+                analysisMode={analysisMode}
+                onAnalysisModeChange={handleModeChange}
+                modality={modality}
+              />
+            )}
           </div>
+
+          {modality === "xray" && analysisMode === "single" && (
+            <div
+              className="glass-panel"
+              style={{
+                padding: "10px 16px 12px",
+                borderRadius: 0,
+                borderTop: "1px solid rgba(255,255,255,0.06)",
+                borderBottom: "none",
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  cursor:
+                    isScanning || stage === "medgemma_questions" || stage === "medgemma_finalizing"
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity:
+                    isScanning || stage === "medgemma_questions" || stage === "medgemma_finalizing"
+                      ? 0.55
+                      : 1,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={medgemmaChestEnabled}
+                  disabled={
+                    isScanning || stage === "medgemma_questions" || stage === "medgemma_finalizing"
+                  }
+                  onChange={(e) => setMedgemmaChestEnabled(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span className="font-body" style={{ fontSize: 12, color: "var(--text-70)", lineHeight: 1.5 }}>
+                  <strong style={{ color: "var(--text-90)" }}>MedGemma chest (production)</strong>
+                  — runs TorchXRayVision first, then MedGemma with your patient context, asks a few follow-up
+                  questions, then generates the final report with Kimi. Patient context above is sent with the
+                  image. Use &quot;Ask Manthana Oracle&quot; afterward for chat (Quick = concise model).
+                </span>
+              </label>
+            </div>
+          )}
+
+          {modality === "premium_ct_unified" ? (
+            <PremiumCTRegionSelector
+              value={premiumCtRegion}
+              onChange={setPremiumCtRegion}
+            />
+          ) : null}
 
           {isCtUiModality(modality) && ctConfig && !showCtWizard && (
             <div
@@ -557,21 +801,27 @@ export default function ScannerPage() {
                   onComplete={setCtConfig}
                 />
               ) : (
-              <ScanViewport
-                onFileDrop={handleFile}
-                imageUrl={imageUrl}
-                stage={stage}
-                zoom={zoom}
-                modality={modality}
-                acceptOverride={isCtUiModality(modality) ? ctFileAccept : undefined}
-                dicomFiles={dicomFiles}
-                onMetadataExtracted={handleDicomMetadata}
-                heatmapUrl={result?.heatmap_url}
-                heatmapState={heatmapState}
-                onHeatmapStateChange={setHeatmapState}
-                findings={result?.findings}
-              />
+                <ScanViewport
+                  onFileDrop={handleFile}
+                  imageUrl={imageUrl}
+                  stage={stage}
+                  zoom={zoom}
+                  modality={modality}
+                  acceptOverride={isCtUiModality(modality) ? ctFileAccept : undefined}
+                  pro2dOnly={proLabs2dOnly}
+                  dicomFiles={dicomFiles}
+                  onMetadataExtracted={handleDicomMetadata}
+                  heatmapUrl={result?.heatmap_url}
+                  heatmapState={heatmapState}
+                  onHeatmapStateChange={setHeatmapState}
+                  findings={result?.findings}
+                />
               )}
+              {modality === "premium_ct_unified" && stage === "analyzing" ? (
+                <div style={{ marginTop: 10 }}>
+                  <PremiumCTProgressPanel step="vista_segmentation" />
+                </div>
+              ) : null}
               <ViewportControls
                 zoom={zoom}
                 onZoomChange={setZoom}
@@ -588,7 +838,11 @@ export default function ScannerPage() {
               <input
                 ref={addMoreRef}
                 type="file"
-                accept={isCtUiModality(modality) ? ctFileAccept : getUploadAcceptTypes(modality)}
+                accept={
+                  isCtUiModality(modality)
+                    ? ctFileAccept
+                    : getUploadAcceptTypes(modality, { pro2dOnly: proLabs2dOnly })
+                }
                 multiple
                 style={{ display: "none" }}
                 onChange={handleAddMoreChange}
@@ -611,6 +865,7 @@ export default function ScannerPage() {
               onSetFiles={setUploadFiles}
               onComplete={proceedToConfirm}
               onBack={goBack}
+              pro2dOnly={proLabs2dOnly}
             />
           )}
 
@@ -689,11 +944,12 @@ export default function ScannerPage() {
           )}
         </div>
 
-        {/* RIGHT: Intelligence Panel — on mobile becomes BottomSheet */}
+        {/* RIGHT: Intelligence Panel — on mobile becomes BottomSheet (tucks off-screen while consent scrolls) */}
         {compact ? (
           /* ── MOBILE/TABLET: Bottom Sheet ── */
           <BottomSheet
             peekHeight={72}
+            tuckedOffScreen={!consentGiven && mobileFindingsTuckedForConsent}
             collapsedContent={
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span className="font-display" style={{ fontSize: 10, color: "var(--text-55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
@@ -701,7 +957,7 @@ export default function ScannerPage() {
                 </span>
                 <span className="font-mono" style={{ fontSize: 9, color: "var(--scan-400)" }}>
                   {stage === "complete" && result
-                    ? `${result.findings.length} findings · ${Math.round(result.findings.reduce((s, f) => s + f.confidence, 0) / (result.findings.length || 1))}%`
+                    ? `${result.findings.length} findings · ${Math.round(result.findings.reduce((s: number, f: Finding) => s + f.confidence, 0) / (result.findings.length || 1))}%`
                     : showMultiComplete
                     ? "Unified report ready"
                     : isScanning
@@ -723,9 +979,10 @@ export default function ScannerPage() {
                 }}
                 onNewScan={handleNewScan}
                 onRetry={handleRetry}
-                onAskAI={handleAskAI}
+                onAskAI={handleOpenOracleFromLabs}
                 heatmapState={heatmapState}
                 onHeatmapStateChange={setHeatmapState}
+                medgemmaQa={medgemmaQaPanel}
               />
             )}
             {showMultiComplete && multiSession.unifiedResult && (
@@ -734,7 +991,7 @@ export default function ScannerPage() {
                 individualResults={multiSession.individualResults}
                 onGenerateReport={() => {}}
                 onNewScan={handleNewScan}
-                onAskAI={handleAskAI}
+                onAskAI={handleOpenOracleFromLabs}
               />
             )}
             {isMultiMode && !showMultiComplete && (
@@ -774,9 +1031,10 @@ export default function ScannerPage() {
                 }}
                 onNewScan={handleNewScan}
                 onRetry={handleRetry}
-                onAskAI={handleAskAI}
+                onAskAI={handleOpenOracleFromLabs}
                 heatmapState={heatmapState}
                 onHeatmapStateChange={setHeatmapState}
+                medgemmaQa={medgemmaQaPanel}
               />
             )}
             {showMultiComplete && multiSession.unifiedResult && (
@@ -787,7 +1045,7 @@ export default function ScannerPage() {
                   console.log("Generate unified report", multiSession.unifiedResult);
                 }}
                 onNewScan={handleNewScan}
-                onAskAI={handleAskAI}
+                onAskAI={handleOpenOracleFromLabs}
               />
             )}
             {isMultiMode && !showMultiComplete && (

@@ -27,6 +27,10 @@ export interface HealthResponse {
 const MOCK_HEALTH: HealthResponse = {
   overall: "operational",
   services: {
+    oracle: { status: "healthy", latency_ms: 72 },
+    labs: { status: "healthy", latency_ms: 140 },
+    web: { status: "healthy", latency_ms: 95 },
+    deep_research: { status: "healthy", latency_ms: 210 },
     radiology: { status: "healthy", latency_ms: 142 },
     ecg: { status: "healthy", latency_ms: 88 },
     ayurveda: { status: "healthy", latency_ms: 201 },

@@ -91,11 +91,18 @@ const symbolStyleFor = (id: string) => {
 interface DomainPillsProps {
   activeDomain: string;
   onSelect: (domain: string) => void;
+  /** Hide M5 pill (e.g. product experiments); normally false — M5 is on for all tiers. */
+  hideM5?: boolean;
 }
 
 const DRAG_THRESHOLD = 5;
 
-export default function DomainPills({ activeDomain, onSelect }: DomainPillsProps) {
+export default function DomainPills({
+  activeDomain,
+  onSelect,
+  hideM5 = false,
+}: DomainPillsProps) {
+  const domains = hideM5 ? DOMAINS.filter((d) => d.id !== "m5") : DOMAINS;
   const domainsContainerRef = useRef<HTMLDivElement | null>(null);
   const [isAutoScrollingDomains, setIsAutoScrollingDomains] = useState(true);
   const isDraggingDomainsRef = useRef(false);
@@ -199,7 +206,7 @@ export default function DomainPills({ activeDomain, onSelect }: DomainPillsProps
       onPointerUp={endDomainsDrag}
       onPointerLeave={endDomainsDrag}
     >
-      {DOMAINS.map((domain) => {
+      {domains.map((domain) => {
         const isActive = activeDomain === domain.id;
         return (
           <button

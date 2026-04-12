@@ -61,15 +61,12 @@ export {
 export {
   deepResearch,
   deepResearchStream,
-  checkOriginality,
   listResearchThreads,
   createResearchThread,
   deleteResearchThread,
   type DeepResearchRequest,
   type DeepResearchResult,
   type DeepResearchStreamEvent,
-  type PlagiarismMatch,
-  type PlagiarismResult,
   type ResearchThread,
   type CreateThreadBody,
 } from "./research";

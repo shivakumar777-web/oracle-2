@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import Logo from "./Logo";
 import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
+import { FREE_LABS_TRIAL_TOTAL } from "@/lib/product-access";
 
 const STEPS = [
   {
@@ -16,14 +17,14 @@ const STEPS = [
     key: "ask",
     icon: "✦",
     heading: "Ask Anything Medical",
-    body: "Type a question, describe symptoms, or ask about drug interactions. Manthana cross-references across all five medical traditions in real-time.",
+    body: "Type a question, describe symptoms, or ask about drug interactions. Pick the M5 — All 5 domain or open the mode panel for five-domain answers — included on Free. Single-domain chat uses your daily Oracle allowance.",
     cta: "Next →",
   },
   {
     key: "modes",
     icon: "◎",
-    heading: "Manthana Analyse",
-    body: "Dedicated imaging workflows are not enabled in this build. Use Oracle, Manthana Web, and Med Deep Research for questions, search, and structured research.",
+    heading: "Manthana Labs",
+    body: `Sign in for ${FREE_LABS_TRIAL_TOTAL} free lifetime imaging scans (any modality). After that, PRO unlocks full Labs quotas. Use Oracle, Manthana Web, and Med Deep Research for questions, search, and structured research.`,
     cta: "Next →",
   },
   {
@@ -41,7 +42,7 @@ function onboardingSteps() {
     s.key === "modes"
       ? {
           ...s,
-          body: "Dedicated imaging workflows are not enabled in this build. Use Manthana Oracle and Med Deep Research for conversation and structured research. Manthana Web—multi-source medical search—is being refined and will return soon.",
+          body: `Sign in for ${FREE_LABS_TRIAL_TOTAL} free lifetime Labs scans, then PRO for full access. Use Manthana Oracle and Med Deep Research for conversation and structured research. Manthana Web is being refined and will return soon.`,
         }
       : s,
   );

@@ -14,12 +14,6 @@ import { ResearchTemplates } from "@/components/deep-research/ResearchTemplates"
 import { ResearchHistory } from "@/components/deep-research/ResearchHistory";
 import { SavedThreadsPanel } from "@/components/deep-research/SavedThreadsPanel";
 import { estimateResearchTime } from "@/lib/activity-log-simulator";
-import { OriginalityPanel } from "@/components/deep-research/OriginalityPanel";
-import { checkOriginality } from "@/lib/api";
-import type {
-  PlagiarismResult,
-  PlagiarismState,
-} from "@/types/plagiarism";
 import { DEEP_RESEARCH_POSITIONING } from "@/lib/deep-research-positioning";
 import Link from "next/link";
 
@@ -65,17 +59,6 @@ export default function DeepResearchPage() {
   }, [runResearch]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [origState, setOrigState] =
-    useState<PlagiarismState>("idle");
-  const [origResult, setOrigResult] =
-    useState<PlagiarismResult | null>(null);
-  const [origText, setOrigText] = useState("");
-  const [origScanId] = useState(() => {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-    return `scan-${Date.now().toString(36)}`;
-  });
 
   return (
     <div className="deep-research-page">
@@ -197,13 +180,6 @@ export default function DeepResearchPage() {
                 </span>
                 <div className="cta-footer-right">
                   <span className="shortcut-hint">Ctrl+Enter</span>
-                  <button
-                    type="button"
-                    className="orig-link"
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    🔱 Originality Engine
-                  </button>
                 </div>
               </div>
             </div>
@@ -257,65 +233,6 @@ export default function DeepResearchPage() {
                 onFormatChange={setOutputFormat}
                 onCitationStyleChange={setCitationStyle}
               />
-
-              <div className="dr-orig-section">
-                <div className="dr-orig-header">
-                  <span className="dr-orig-eyebrow">
-                    🔱 Originality Tools
-                  </span>
-                  <p className="dr-orig-sub">
-                    Paste any draft or report text to run a one-off
-                    originality scan using the same Manthana engine.
-                  </p>
-                </div>
-                <textarea
-                  className="dr-orig-textarea"
-                  rows={4}
-                  value={origText}
-                  onChange={(e) => setOrigText(e.target.value)}
-                  placeholder="Paste any clinical report, research abstract, or thesis paragraph here..."
-                />
-                <div className="dr-orig-actions">
-                  <button
-                    type="button"
-                    className={`dr-orig-btn ${origState}`}
-                    onClick={async () => {
-                      if (!origText.trim() || origState === "checking")
-                        return;
-                      setOrigState("checking");
-                      setOrigResult(null);
-                      try {
-                        const res = await checkOriginality(
-                          origText,
-                          origScanId,
-                        );
-                        if ((res as any)?.error) {
-                          setOrigState("error");
-                        } else {
-                          setOrigResult(res);
-                          setOrigState("done");
-                        }
-                      } catch {
-                        setOrigState("error");
-                      }
-                    }}
-                    disabled={origState === "checking"}
-                  >
-                    {origState === "checking"
-                      ? "Checking..."
-                      : origState === "done"
-                      ? "✓ Originality Checked"
-                      : origState === "error"
-                      ? "⚠ Check Failed"
-                      : "Check Originality"}
-                  </button>
-                </div>
-                <OriginalityPanel
-                  state={origState}
-                  result={origResult}
-                  onClose={() => setOrigState("idle")}
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -530,19 +447,6 @@ export default function DeepResearchPage() {
           border-radius: 4px;
           border: 1px solid rgba(245, 239, 232, 0.18);
         }
-        .orig-link {
-          border: none;
-          background: transparent;
-          font-family: "Space Mono", monospace;
-          font-size: 0.55rem;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          color: rgba(196, 181, 253, 0.9);
-          cursor: pointer;
-        }
-        .orig-link:hover {
-          color: rgba(221, 214, 254, 1);
-        }
         @media (max-width: 768px) {
           .deep-research-layout {
             grid-template-columns: 1fr;
@@ -623,73 +527,6 @@ export default function DeepResearchPage() {
         .dr-settings-body {
           flex: 1;
           overflow-y: auto;
-        }
-        .dr-orig-section {
-          margin-top: 1.4rem;
-          padding-top: 1.1rem;
-          border-top: 1px solid rgba(30, 64, 175, 0.6);
-        }
-        .dr-orig-header {
-          margin-bottom: 0.5rem;
-        }
-        .dr-orig-eyebrow {
-          font-family: "Space Mono", monospace;
-          font-size: 0.7rem;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          color: rgba(191, 219, 254, 0.9);
-        }
-        .dr-orig-sub {
-          font-family: "Lora", serif;
-          font-size: 0.76rem;
-          color: rgba(148, 163, 184, 0.9);
-          margin-top: 0.2rem;
-        }
-        .dr-orig-textarea {
-          width: 100%;
-          margin-top: 0.4rem;
-          padding: 0.65rem 0.7rem;
-          border-radius: 8px;
-          border: 1px solid rgba(55, 65, 81, 0.9);
-          background: rgba(15, 23, 42, 0.95);
-          color: #e5e7eb;
-          font-family: "Lora", serif;
-          font-size: 0.78rem;
-          resize: vertical;
-          min-height: 80px;
-        }
-        .dr-orig-textarea::placeholder {
-          color: rgba(148, 163, 184, 0.6);
-          font-style: italic;
-        }
-        .dr-orig-actions {
-          margin-top: 0.5rem;
-          display: flex;
-          justify-content: flex-end;
-        }
-        .dr-orig-btn {
-          font-family: "Space Mono", monospace;
-          font-size: 0.7rem;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          padding: 0.4rem 0.9rem;
-          border-radius: 999px;
-          border: 1px solid rgba(147, 197, 253, 0.8);
-          background: transparent;
-          color: rgba(219, 234, 254, 0.95);
-          cursor: pointer;
-        }
-        .dr-orig-btn.checking {
-          opacity: 0.75;
-          cursor: wait;
-        }
-        .dr-orig-btn.done {
-          border-color: rgba(34, 197, 94, 0.8);
-          color: rgba(187, 247, 208, 0.95);
-        }
-        .dr-orig-btn.error {
-          border-color: rgba(248, 113, 113, 0.85);
-          color: rgba(254, 202, 202, 0.95);
         }
       `}</style>
     </div>

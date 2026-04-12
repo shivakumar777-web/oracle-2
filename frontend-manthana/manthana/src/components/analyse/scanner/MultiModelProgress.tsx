@@ -2,6 +2,7 @@
 import React from "react";
 import { MODALITIES } from "@/lib/analyse/constants";
 import type { MultiModelSession } from "@/lib/analyse/types";
+import PremiumCTProgressPanel from "@/components/analyse/PremiumCTProgressPanel";
 
 interface Props {
   session: MultiModelSession;
@@ -13,6 +14,8 @@ export default function MultiModelProgress({ session }: Props) {
   const isUnifying = stage === "unifying";
   const total = uploads.length;
   const current = currentProcessingIndex;
+  const activeModality = uploads[current]?.modality;
+  const showPremiumSteps = activeModality === "premium_ct_unified";
 
   return (
     <div
@@ -73,6 +76,12 @@ export default function MultiModelProgress({ session }: Props) {
               })()}
         </p>
       </div>
+
+      {showPremiumSteps ? (
+        <div style={{ width: "90%", maxWidth: 420 }}>
+          <PremiumCTProgressPanel step="vista_segmentation" />
+        </div>
+      ) : null}
 
       {/* Progress bar */}
       <div style={{ width: "80%", maxWidth: 280 }}>

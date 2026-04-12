@@ -1,6 +1,7 @@
 /**
  * Amazon SES Email Service
- * Handles transactional emails: verification, receipts, notifications
+ * Handles transactional emails: receipts, notifications, and (when configured)
+ * Supabase auth mail via the Send Email hook at /api/supabase/auth-send-email.
  *
  * IMPORTANT: SES Sandbox Mode vs Production
  * - SANDBOX: You can ONLY send TO verified email addresses

@@ -67,7 +67,7 @@ export default function ReportPage() {
   const radsDef = useMemo(() => getRADSDefinition(modality), [modality]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       <TopBar />
 
       <main

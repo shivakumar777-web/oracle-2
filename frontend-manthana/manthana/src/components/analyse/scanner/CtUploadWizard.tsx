@@ -334,16 +334,10 @@ export default function CtUploadWizard({ onComplete, lockRegion }: Props) {
                 How many image files do you have?
               </label>
               <select
+                className="ct-dicom-band-select"
                 value={dicom_file_band}
                 onChange={(e) => setDicomFileBand(e.target.value as CtDicomFileBand)}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 6,
-                  border: "1px solid var(--glass-border)",
-                  background: "rgba(0,0,0,0.35)",
-                  color: "var(--text-55)",
-                  fontSize: 12,
-                }}
+                aria-label="Number of DICOM image files in this series"
               >
                 {dicomBands.map((b) => (
                   <option key={b.id} value={b.id}>

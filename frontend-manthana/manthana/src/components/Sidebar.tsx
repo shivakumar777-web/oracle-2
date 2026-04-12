@@ -7,46 +7,59 @@ import Logo from "./Logo";
 import ServiceHealth from "./ServiceHealth";
 import { useLang } from "./LangProvider";
 import { authClient } from "@/lib/auth-client";
-import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
+import { isFullManthanaNav } from "@/lib/product-nav";
+import { useProductAccess } from "./ProductAccessProvider";
+import PlanTierButton from "./PlanTierButton";
+import { useToast } from "@/hooks/useToast";
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string;
+  icon: string;
+  label: string;
+  id: string;
+  placeholder?: boolean;
+};
+
+const ALL_NAV_ITEMS: readonly NavItem[] = [
   { href: "/", icon: "✦", label: "Oracle", id: "oracle" },
-  { href: "/search", icon: "⌕", label: "Web", id: "search" },
   {
     href: "/deep-research",
     icon: "🔬",
     label: "Med Deep Research",
     id: "deep-research",
   },
-  { href: "/analyse", icon: "◎", label: "Manthana Analyse", id: "manthana-analyse" },
+  { href: "/analyse", icon: "◎", label: "Labs", id: "manthana-analyse" },
+  { href: "/medtrace", icon: "⬡", label: "Medtrace", id: "medtrace" },
   { href: "#history", icon: "◷", label: "History", id: "history" },
   { href: "#settings", icon: "⚙", label: "Settings", id: "settings" },
-] as const;
+];
 
 interface SidebarProps {
   expanded: boolean;
   onToggle: () => void;
   onOverlayOpen: (overlay: string) => void;
+  onOpenSubscriptionSettings: () => void;
 }
 
 export default function Sidebar({
   expanded,
   onToggle,
   onOverlayOpen,
+  onOpenSubscriptionSettings,
 }: SidebarProps) {
   const pathname = usePathname();
   const { lang, setLang } = useLang();
   const { data: session, isPending } = authClient.useSession();
-  const webLocked = isManthanaWebLocked();
+  const access = useProductAccess();
+  const { addToast } = useToast();
 
-  const CLINICAL_TOOLS = [
-    { id: "drug", icon: "💊", label: "Drug Interactions" },
-    { id: "herb", icon: "🌿", label: "Herb-Drug Safety" },
-    { id: "trials", icon: "🧬", label: "Clinical Trials" },
-    { id: "icd10", icon: "🏥", label: "ICD-10 Lookup" },
-  ] as const;
+  const navItems = isFullManthanaNav()
+    ? ALL_NAV_ITEMS
+    : ALL_NAV_ITEMS.filter(
+        (i) => i.id !== "deep-research" && i.id !== "medtrace",
+      );
 
-  const handleClick = (item: (typeof NAV_ITEMS)[number]) => {
+  const handleClick = (item: NavItem) => {
     if (item.href && item.href.startsWith("#")) {
       onOverlayOpen(item.id);
     }
@@ -110,7 +123,7 @@ export default function Sidebar({
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-2 space-y-1">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isPlaceholder = "placeholder" in item && item.placeholder;
           const isActive =
             isPlaceholder
@@ -172,70 +185,98 @@ export default function Sidebar({
             </div>
           );
 
-          if (isPlaceholder) {
-            return (
-              <div key={item.id} title="Manthana Analyse">
+          const labsLocked =
+            item.id === "manthana-analyse" &&
+            !access.loading && !access.labsAccess;
+
+          const body = isPlaceholder ? (
+            <div title="Labs">{content}</div>
+          ) : isOverlay ? (
+            <div>{content}</div>
+          ) : labsLocked ? (
+            access.signedIn ? (
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() => {
+                  addToast(
+                    "You've used all 3 free Manthana Labs trial scans. Open Plans to upgrade to PRO for full Labs.",
+                    "info",
+                    7000
+                  );
+                  onOpenSubscriptionSettings();
+                }}
+                title="Labs — trial used or PRO required"
+                aria-label="Labs — upgrade to PRO after free trial"
+              >
+                <div className="relative">
+                  {content}
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] opacity-60" aria-hidden>
+                    🔒
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <Link
+                href="/sign-in?callbackUrl=/analyse"
+                className="block w-full text-left"
+                title="Labs — sign in for 3 free trial scans"
+                aria-label="Labs — sign in for free trial"
+              >
                 {content}
-              </div>
-            );
-          }
-          return isOverlay ? (
-            <div key={item.id}>{content}</div>
+              </Link>
+            )
           ) : (
-            <Link
-              key={item.id}
-              href={item.href!}
-              title={
-                item.id === "search" && webLocked
-                  ? "Manthana Web — refined experience coming soon"
-                  : undefined
-              }
-              aria-label={
-                item.id === "search" && webLocked
-                  ? "Manthana Web, coming soon"
-                  : undefined
-              }
-            >
-              {content}
-            </Link>
+            <Link href={item.href!}>{content}</Link>
+          );
+
+          return (
+            <React.Fragment key={item.id}>
+              {item.id === "medtrace" && (
+                <div
+                  className="mx-2 mt-1 border-t border-white/[0.08] pt-2"
+                  aria-hidden
+                />
+              )}
+              {body}
+            </React.Fragment>
           );
         })}
       </nav>
 
-      {/* Clinical tools shortcuts */}
-      <div className="px-3 pb-3">
-        {expanded && (
-          <p className="font-ui text-[9px] tracking-[0.3em] uppercase text-cream/25 mt-1 mb-1.5">
-            Clinical Tools
-          </p>
-        )}
-        <div className="space-y-1">
-          {CLINICAL_TOOLS.map((tool) => (
-            <button
-              key={tool.id}
-              type="button"
-              suppressHydrationWarning
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  (window as any).openClinicalTools?.(tool.id);
-                }
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/[0.04] text-left ${
-                expanded ? "" : "justify-center"
-              }`}
-            >
-              <span className="text-lg w-6 text-center text-cream/50">
-                {tool.icon}
+      {/* Clinical tools — full product only */}
+      {isFullManthanaNav() && (
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            suppressHydrationWarning
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                (window as any).openClinicalTools?.();
+              }
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.04] text-left border border-transparent hover:border-gold/15 transition-colors ${
+              expanded ? "" : "justify-center"
+            }`}
+            aria-label="Clinical tools"
+          >
+            <span className="text-lg w-6 text-center text-cream/50" aria-hidden>
+              ⚕
+            </span>
+            {expanded && (
+              <span className="font-ui text-[10px] tracking-[0.16em] uppercase text-cream/40">
+                Clinical Tools
               </span>
-              {expanded && (
-                <span className="font-ui text-[10px] tracking-[0.16em] uppercase text-cream/40">
-                  {tool.label}
-                </span>
-              )}
-            </button>
-          ))}
+            )}
+          </button>
         </div>
-      </div>
+      )}
+
+      <PlanTierButton
+        access={access}
+        variant={expanded ? "sidebar-expanded" : "sidebar-collapsed"}
+        onOpenPlans={onOpenSubscriptionSettings}
+      />
 
       {/* Auth */}
       <div className="border-t border-white/[0.04] pt-2 px-2">
@@ -245,29 +286,24 @@ export default function Sidebar({
               <div className="flex-1 min-w-0">
                 {expanded && (
                   <p className="font-ui text-[10px] text-cream/60 truncate" title={session.user.email ?? undefined}>
-                    {session.user.name ?? session.user.email}
+                    {(session.user as { name?: string }).name ?? session.user.email}
                   </p>
                 )}
                 <button
                   type="button"
                   suppressHydrationWarning
                   onClick={() =>
-                    authClient.signOut({
-                      fetchOptions: { 
+                    void authClient.signOut({
+                      fetchOptions: {
                         onSuccess: () => {
-                          // Clear dev auto-signin flags on explicit sign out
-                          if (typeof sessionStorage !== "undefined") {
-                            sessionStorage.removeItem("dev-auto-signed-in");
-                            sessionStorage.removeItem("dev-auto-signin-disabled");
-                          }
-                          window.location.reload();
-                        }
+                          window.location.assign("/");
+                        },
                       },
                     })
                   }
                   className={`font-ui text-[9px] tracking-[0.12em] uppercase text-cream/40 hover:text-gold-h transition-colors ${expanded ? "" : "w-full"}`}
                 >
-                  Sign out
+                  Log out
                 </button>
               </div>
             </div>

@@ -1103,6 +1103,31 @@
   background: var(--void-1);
 }
 
+/* CT upload wizard — native select + dropdown list (Windows/Chrome needs explicit option colors + color-scheme) */
+.ct-dicom-band-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+  background: #0c121c;
+  color: #f0ebe3;
+  font-size: 12px;
+  font-family: var(--font-body, system-ui, sans-serif);
+  outline: none;
+  cursor: pointer;
+  color-scheme: dark;
+}
+.ct-dicom-band-select:focus,
+.ct-dicom-band-select:focus-visible {
+  border-color: var(--scan-400, #1ddfc8);
+  box-shadow: 0 0 0 1px rgba(29, 223, 200, 0.28);
+}
+.ct-dicom-band-select option {
+  background-color: #0c121c;
+  color: #f0ebe3;
+}
+
 .pacs-study-list {
   flex: 1;
   overflow-y: auto;
@@ -1310,7 +1335,8 @@
   right: 0;
   width: 380px;
   max-width: 90vw;
-  height: 100vh;
+  height: 100vh; /* fallback */
+  height: 100dvh;
   background: rgba(12, 14, 18, 0.96);
   backdrop-filter: blur(16px);
   border-left: 1px solid rgba(255, 255, 255, 0.06);
@@ -1940,6 +1966,21 @@
 [data-theme="clinical"] .pacs-modality-select option {
   color: #1a202c;
   background: #ffffff;
+}
+[data-theme="clinical"] .ct-dicom-band-select {
+  color-scheme: light;
+  background: #ffffff;
+  color: #1a202c;
+  border-color: rgba(43, 108, 176, 0.28);
+}
+[data-theme="clinical"] .ct-dicom-band-select:focus,
+[data-theme="clinical"] .ct-dicom-band-select:focus-visible {
+  border-color: #2b6cb0;
+  box-shadow: 0 0 0 1px rgba(43, 108, 176, 0.25);
+}
+[data-theme="clinical"] .ct-dicom-band-select option {
+  background-color: #ffffff;
+  color: #1a202c;
 }
 [data-theme="clinical"] .pacs-study-row {
   border-bottom-color: rgba(43, 108, 176, 0.08);

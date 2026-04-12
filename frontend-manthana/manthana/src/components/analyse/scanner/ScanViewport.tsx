@@ -34,6 +34,8 @@ interface Props {
   modality?: string;
   /** When set, overrides `getUploadAcceptTypes(modality)` for the file input. */
   acceptOverride?: string;
+  /** Active Pro: strip video from accept (2D-only CT/MRI/USG-style uploads). */
+  pro2dOnly?: boolean;
   // DICOM
   dicomFiles?: File[];
   onMetadataExtracted?: (meta: DicomMetadataType) => void;
@@ -64,10 +66,13 @@ export default function ScanViewport({
   onHeatmapStateChange,
   findings = [],
   acceptOverride,
+  pro2dOnly,
 }: Props) {
   const { isMobile, isTablet } = useMediaQuery();
   const compact = isMobile || isTablet;
-  const acceptTypes = acceptOverride ?? getUploadAcceptTypes(modality);
+  const acceptTypes =
+    acceptOverride ??
+    getUploadAcceptTypes(modality ?? "xray", { pro2dOnly });
   const isLabReport = modality === "lab_report";
 
   const [dragOver, setDragOver] = useState(false);
@@ -80,7 +85,7 @@ export default function ScanViewport({
   const cameraRef = useRef<HTMLInputElement>(null);
   const dicomViewportRef = useRef<DicomViewportHandle>(null);
 
-  const isScanning = !["idle", "complete", "error"].includes(stage);
+  const isScanning = !["idle", "complete", "error", "medgemma_questions"].includes(stage);
   const isComplete = stage === "complete";
   const isDicomMode = dicomFiles && dicomFiles.length > 0 && detectDicom(dicomFiles);
   const hasHeatmap = isComplete && (!!heatmapUrl || findings.length > 0);
@@ -332,6 +337,8 @@ export default function ScanViewport({
             {stage === "analyzing" && "ANALYSING PIXEL MATRIX…"}
             {stage === "heatmap" && "GENERATING ATTENTION MAP…"}
             {stage === "extracting" && "EXTRACTING FINDINGS…"}
+            {stage === "medgemma_questions" && "CLINICAL FOLLOW-UP (MEDGEMMA)…"}
+            {stage === "medgemma_finalizing" && "FINAL REPORT (KIMI)…"}
           </span>
         </div>
       )}

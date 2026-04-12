@@ -1,51 +1,21 @@
 /**
  * Research section API client.
- * Deep research, originality/plagiarism check.
+ * Deep research (REST + SSE).
  */
 
 import { fetchWithAuth } from "../core/client";
-import { RESEARCH_BASE, API_ORIGIN } from "../config";
+import { RESEARCH_BASE } from "../config";
 import type {
   DeepResearchRequest,
   DeepResearchResult,
   DeepResearchStreamEvent,
-  PlagiarismResult,
 } from "./types";
 
 export type {
   DeepResearchRequest,
   DeepResearchResult,
   DeepResearchStreamEvent,
-  PlagiarismMatch,
-  PlagiarismResult,
 } from "./types";
-
-const MOCK_PLAGIARISM: PlagiarismResult = {
-  originalityScore: 91,
-  matchedPercent: 9,
-  matches: [
-    {
-      matchedSentence:
-        "Homogeneous opacification noted in the right lower lobe with air bronchograms, consistent with airspace disease.",
-      source: "Franquet T. Radiology 2001;218(1)",
-      url: "https://pubmed.ncbi.nlm.nih.gov/11172015/",
-      matchPercent: 5.2,
-      isCitation: true,
-    },
-    {
-      matchedSentence: "Community-acquired pneumonia management: current concepts.",
-      source: "UpToDate — Pneumonia",
-      url: "https://www.uptodate.com/contents/pneumonia",
-      matchPercent: 3.8,
-      isCitation: true,
-    },
-  ],
-  sentencesAnalysed: 24,
-  sourcesSearched: 7,
-  layers: { webSearch: 2, vectorDB: 0 },
-  scanDate: new Date().toISOString(),
-  note: "Mock mode — backend offline. Run docker-compose up.",
-};
 
 /**
  * POST /deep-research — structured research with citations.
@@ -160,34 +130,4 @@ export async function deepResearchStream(
     citation_style,
     provider_used: meta.provider_used,
   };
-}
-
-/**
- * POST /plagiarism/check — originality check.
- */
-export async function checkOriginality(
-  text: string,
-  scanId: string
-): Promise<PlagiarismResult> {
-  try {
-    const res = await fetchWithAuth(`${RESEARCH_BASE}/plagiarism/check`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, scanId }),
-    });
-    if (!res.ok) throw new Error("Originality check failed");
-    const envelope = await res.json();
-    return (envelope.data ?? envelope) as PlagiarismResult;
-  } catch (err) {
-    const isLocal = typeof window !== "undefined" && API_ORIGIN.startsWith("http://localhost");
-    if (isLocal) {
-      console.warn(
-        "[Manthana] Originality backend offline — returning mock plagiarism result",
-        err
-      );
-      await new Promise((r) => setTimeout(r, 4000));
-      return MOCK_PLAGIARISM;
-    }
-    throw err;
-  }
 }

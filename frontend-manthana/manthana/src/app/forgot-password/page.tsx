@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { browserOAuthOrigin } from "@/lib/auth/site-public-origin";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -16,32 +17,13 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     try {
-      const ac = authClient as {
-        requestPasswordReset?: (args: {
-          email: string;
-          redirectTo?: string;
-        }) => Promise<unknown>;
-        forgetPassword?: (args: {
-          email: string;
-          redirectTo?: string;
-        }) => Promise<unknown>;
-      };
-      if (typeof ac.requestPasswordReset === "function") {
-        await ac.requestPasswordReset({
-          email,
-          redirectTo: "/reset-password",
-        });
-      } else if (typeof ac.forgetPassword === "function") {
-        await ac.forgetPassword({
-          email,
-          redirectTo: "/reset-password",
-        });
-      } else {
-        throw new Error("Password reset is not available");
-      }
+      await authClient.resetPasswordForEmail(email, {
+        redirectTo: `${browserOAuthOrigin()}/reset-password`,
+      });
       setSubmitted(true);
-    } catch (err: any) {
-      setError(err?.message || "Failed to send reset email. Please try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to send reset email. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }

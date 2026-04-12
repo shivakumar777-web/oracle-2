@@ -1,133 +1,119 @@
 /**
- * Next.js Middleware — Route Protection
- * Redirects unauthenticated users to sign-in with callback URL
- * Also checks subscription status for premium routes
+ * Next.js Middleware — Supabase session + auth gate for production.
+ * Oracle and app routes require sign-in; intro lives on /welcome then cookie → /sign-in.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
+import { safeInternalPath } from "@/lib/auth/safe-internal-path";
+import { ONBOARDING_COOKIE } from "@/lib/auth/onboarding-cookie";
 
-// Routes that don't require authentication
 const PUBLIC_ROUTES = [
   "/sign-in",
   "/sign-up",
   "/forgot-password",
   "/reset-password",
-  "/api/auth", // Better Auth API
-  "/api/razorpay/webhook", // Payment webhooks (must be public)
-  "/_next", // Next.js internal
-  "/static", // Static files
+  "/auth/callback",
+  "/welcome",
+  "/api/razorpay/webhook",
+  "/api/supabase/auth-send-email",
+  "/_next",
+  "/static",
   "/favicon.ico",
   "/manifest.json",
+  "/sw.js",
+  "/offline.html",
+  "/icons",
   "/logo",
   "/assets",
   "/images",
   "/fonts",
-  "/", // Landing page (if public)
   "/about",
   "/pricing",
   "/contact",
 ];
 
-// Routes that require active subscription (free users blocked)
-const PREMIUM_ROUTES = [
-  "/analyse",
-  "/research",
-  "/clinical",
-  "/web",
-  "/oracle",
-];
+const PREMIUM_ROUTES = ["/research", "/clinical", "/web", "/oracle"];
 
-// Check if path is public
 function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some((route) => {
-    if (route === "/" && pathname !== "/") return false;
-    return pathname.startsWith(route);
+  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+}
+
+function copyCookies(from: NextResponse, to: NextResponse) {
+  from.cookies.getAll().forEach((c) => {
+    to.cookies.set(c.name, c.value, c);
   });
 }
 
-// Check if path requires subscription
-function isPremiumRoute(pathname: string): boolean {
-  return PREMIUM_ROUTES.some((route) => pathname.startsWith(route));
-}
-
-// Extract session cookie from request
-function getSessionCookie(request: NextRequest): string | undefined {
-  // Better Auth uses these cookie names
-  const cookieNames = [
-    "better-auth.session_token",
-    "better-auth.session",
-    "__Secure-better-auth.session_token",
-    "__Host-better-auth.session_token",
-  ];
-
-  for (const name of cookieNames) {
-    const cookie = request.cookies.get(name);
-    if (cookie?.value) {
-      return cookie.value;
-    }
-  }
-  return undefined;
-}
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // DEV MODE: skip all auth checks (development only)
-  const isDev = process.env.NODE_ENV === "development";
-  if (isDev) {
-    const response = NextResponse.next();
-    response.headers.set("X-Frame-Options", "DENY");
-    response.headers.set("X-Content-Type-Options", "nosniff");
-    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-    return response;
+  const { supabaseResponse, user } = await updateSession(request);
+
+  const redirectWithSession = (url: URL) => {
+    const res = NextResponse.redirect(url);
+    copyCookies(supabaseResponse, res);
+    res.headers.set("X-Frame-Options", "DENY");
+    res.headers.set("X-Content-Type-Options", "nosniff");
+    res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    return res;
+  };
+
+  const finishWithSession = (res: NextResponse) => {
+    copyCookies(supabaseResponse, res);
+    res.headers.set("X-Frame-Options", "DENY");
+    res.headers.set("X-Content-Type-Options", "nosniff");
+    res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    return res;
+  };
+
+  if (user && pathname === "/welcome") {
+    return redirectWithSession(new URL("/", request.url));
   }
 
-  // Allow public routes without authentication
+  if (user && (pathname === "/sign-in" || pathname === "/sign-up")) {
+    const nextParam = request.nextUrl.searchParams.get("callbackUrl");
+    const dest = safeInternalPath(nextParam, "/");
+    return redirectWithSession(new URL(dest, request.url));
+  }
+
   if (isPublicRoute(pathname)) {
-    return NextResponse.next();
+    return finishWithSession(supabaseResponse);
   }
 
-  // Check for Better Auth session cookie
-  const sessionCookie = getSessionCookie(request);
-
-  if (!sessionCookie) {
-    // API routes: never redirect to HTML sign-in (breaks fetch/SSE — clients expect JSON or stream).
+  if (!user) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { error: "Unauthorized", message: "Sign in required." },
         { status: 401 }
       );
     }
+
+    if (pathname === "/") {
+      const onboarded =
+        request.cookies.get(ONBOARDING_COOKIE)?.value === "1";
+      const target = onboarded ? "/sign-in" : "/welcome";
+      const url = new URL(target, request.url);
+      if (onboarded) {
+        url.searchParams.set("callbackUrl", "/");
+      }
+      return redirectWithSession(url);
+    }
+
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(signInUrl);
+    return redirectWithSession(signInUrl);
   }
 
-  // Check if this is a premium route that might need subscription
-  // Note: Actual subscription enforcement happens in API routes/page components
-  // This middleware only ensures they're logged in
-
-  // Add security headers
-  const response = NextResponse.next();
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-
-  return response;
+  return finishWithSession(supabaseResponse);
 }
 
-// Match all routes except static files and API routes that are public
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|css|js)$).*)",
   ],
 };
 
-/**
- * Edge-Compatible Middleware Helper
- * For routes that need to check subscription status, use page-level
- * guards rather than middleware (to avoid database calls at edge)
- */
 export const middlewareConfig = {
   publicRoutes: PUBLIC_ROUTES,
   premiumRoutes: PREMIUM_ROUTES,

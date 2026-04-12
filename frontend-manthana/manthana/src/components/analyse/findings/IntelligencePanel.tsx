@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useEffect, useState } from "react";
 import type { AnalysisResponse, ScanStage, HeatmapState } from "@/lib/analyse/types";
 import FindingCard from "./FindingCard";
 import DualArcGauge from "./DualArcGauge";
@@ -7,6 +7,7 @@ import { MODALITIES } from "@/lib/analyse/constants";
 import { modalityBarIdFromBackendCt } from "@/lib/analyse/ct-upload-wizard";
 import { useMediaQuery } from "@/hooks/analyse/useMediaQuery";
 import { scoreFindings } from "@/lib/analyse/structured-reports";
+import { uniqueFormattedLabsModels } from "@/lib/analyse/display-models";
 
 interface Props {
   stage: ScanStage;
@@ -21,6 +22,13 @@ interface Props {
   analysisElapsedMs?: number;
   /** Optional retry handler for failed analyses. */
   onRetry?: () => void;
+  /** MedGemma chest Q&A step (after TXRV, before Kimi final report). */
+  medgemmaQa?: {
+    questions: Array<{ id: string; question: string; why_needed?: string }>;
+    impressionDraft?: string;
+    onSubmit: (answers: Record<string, string>) => void;
+    onSkipAll: () => void;
+  };
 }
 
 export default function IntelligencePanel({
@@ -34,12 +42,29 @@ export default function IntelligencePanel({
   onHeatmapStateChange,
   analysisElapsedMs,
   onRetry,
+  medgemmaQa,
 }: Props) {
   const { isMobile, isTablet } = useMediaQuery();
   const compact = isMobile || isTablet;
   const isIdle = stage === "idle";
-  const isScanning = !["idle", "complete", "error"].includes(stage);
+  const isScanning = !["idle", "complete", "error", "medgemma_questions"].includes(stage);
   const isComplete = stage === "complete" && result;
+
+  const [medgemmaAnswers, setMedgemmaAnswers] = useState<Record<string, string>>({});
+  const medgemmaQKey =
+    medgemmaQa?.questions?.map((q) => q.id).join("\u001f") ?? "";
+
+  useEffect(() => {
+    if (!medgemmaQa?.questions?.length) {
+      setMedgemmaAnswers({});
+      return;
+    }
+    const init: Record<string, string> = {};
+    for (const q of medgemmaQa.questions) {
+      if (q.id) init[q.id] = "";
+    }
+    setMedgemmaAnswers(init);
+  }, [medgemmaQKey]);
 
   const modalityInfo = useMemo(() => {
     const id = detectedModality || result?.modality || "";
@@ -103,7 +128,7 @@ export default function IntelligencePanel({
         maxWidth: compact ? "none" : 380,
         flexShrink: 0,
         flex: compact ? 1 : undefined,
-        minHeight: compact ? "calc(100vh - 40px)" : undefined,
+        minHeight: compact ? "calc(100dvh - 40px)" : undefined,
         display: "flex",
         flexDirection: "column",
         overflow: compact ? "visible" : "hidden",
@@ -210,6 +235,7 @@ export default function IntelligencePanel({
               : "Running inference…")}
             {stage === "heatmap" && "Generating heatmap…"}
             {stage === "extracting" && "Extracting findings…"}
+            {stage === "medgemma_finalizing" && "Writing final chest report (Kimi)…"}
           </p>
 
           {stage === "analyzing" && typeof analysisElapsedMs === "number" && analysisElapsedMs > 1000 && (
@@ -261,6 +287,86 @@ export default function IntelligencePanel({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {stage === "medgemma_questions" && result && medgemmaQa && (
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: compact ? "0 8px 28px" : "0 20px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+          className="no-scrollbar"
+        >
+          <p
+            className="text-caption"
+            style={{ color: "var(--gold-400)", letterSpacing: "0.1em", margin: 0 }}
+          >
+            MEDGEMMA CHEST — FOLLOW-UP
+          </p>
+          <p className="font-body" style={{ fontSize: 12, color: "var(--text-55)", lineHeight: 1.55, margin: 0 }}>
+            Answer what you can (or skip) so we can generate the final structured report. This step uses your
+            patient context and the TorchXRayVision scores already computed.
+          </p>
+          {medgemmaQa.impressionDraft ? (
+            <div
+              style={{
+                padding: "10px 12px",
+                borderRadius: "var(--r-sm)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.03)",
+              }}
+            >
+              <p className="text-caption" style={{ color: "var(--text-30)", margin: "0 0 6px" }}>
+                Model draft (not the final report)
+              </p>
+              <p className="font-body" style={{ fontSize: 11, color: "var(--text-70)", margin: 0, lineHeight: 1.5 }}>
+                {medgemmaQa.impressionDraft}
+              </p>
+            </div>
+          ) : null}
+          {medgemmaQa.questions.map((q) => (
+            <label key={q.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span className="font-body" style={{ fontSize: 12, color: "var(--text-80)", fontWeight: 600 }}>
+                {q.question}
+              </span>
+              {q.why_needed ? (
+                <span className="font-mono" style={{ fontSize: 9, color: "var(--text-30)", lineHeight: 1.4 }}>
+                  {q.why_needed}
+                </span>
+              ) : null}
+              <textarea
+                value={medgemmaAnswers[q.id] ?? ""}
+                onChange={(e) =>
+                  setMedgemmaAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))
+                }
+                rows={2}
+                placeholder="Type an answer or leave blank to skip this item"
+                style={{
+                  width: "100%",
+                  resize: "vertical",
+                  borderRadius: "var(--r-sm)",
+                  border: "1px solid var(--glass-border)",
+                  background: "rgba(0,0,0,0.25)",
+                  color: "var(--text-90)",
+                  fontSize: 12,
+                  padding: "8px 10px",
+                }}
+              />
+            </label>
+          ))}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            <button type="button" className="btn-ghost" onClick={() => medgemmaQa.onSkipAll()}>
+              Skip all questions
+            </button>
+            <button type="button" className="btn-gold" onClick={() => medgemmaQa.onSubmit(medgemmaAnswers)}>
+              Generate final report
+            </button>
+          </div>
         </div>
       )}
 
@@ -549,6 +655,41 @@ export default function IntelligencePanel({
             </p>
           </div>
 
+          {(() => {
+            const st = result.structures;
+            if (
+              typeof st !== "object" ||
+              st === null ||
+              Array.isArray(st) ||
+              typeof (st as Record<string, unknown>).narrative_report !== "string"
+            ) {
+              return null;
+            }
+            const nr = String((st as Record<string, unknown>).narrative_report).trim();
+            if (!nr) return null;
+            return (
+              <div style={{ marginBottom: 20 }}>
+                <h3
+                  className="text-caption"
+                  style={{ color: "var(--scan-400)", marginBottom: 8 }}
+                >
+                  ✦ FINAL INTERPRETATION (MedGemma + Kimi)
+                </h3>
+                <div
+                  className="font-body"
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-75)",
+                    lineHeight: 1.65,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {nr}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Models used */}
           {result.models_used?.length > 0 && (
             <div style={{ marginBottom: 20 }}>
@@ -559,7 +700,7 @@ export default function IntelligencePanel({
                 MODELS USED
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {result.models_used.map((m) => (
+                {uniqueFormattedLabsModels(result.models_used).map((m) => (
                   <span
                     key={m}
                     className="font-mono"
@@ -588,9 +729,9 @@ export default function IntelligencePanel({
               <button
                 className="btn-teal"
                 onClick={onAskAI}
-                style={{ flex: 1, fontSize: 11, padding: "8px 12px" }}
+                style={{ flex: 1, fontSize: 10, padding: "8px 10px", lineHeight: 1.25 }}
               >
-                Ask AI
+                Ask Manthana Oracle
               </button>
               <button
                 className="btn-ghost"

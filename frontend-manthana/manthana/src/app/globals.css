@@ -70,14 +70,38 @@ body {
   background: var(--g1);
   color: var(--white);
   font-family: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
-  min-height: 100vh;
+  min-height: 100vh; /* fallback */
+  min-height: 100dvh;
   overflow-x: hidden;
+}
+
+/* PWA standalone: reduce pull-to-refresh reload, respect status bar / notch */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: contain;
+  }
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* Full-viewport Labs shell — contain vertical overscroll */
+.analyse-app-shell {
+  overscroll-behavior-y: contain;
+}
+
+@media (display-mode: standalone) {
+  .bottom-nav-pwa-host nav[role="navigation"] {
+    min-height: 3.75rem;
+  }
 }
 
 /* ── Scroll Performance ──────────────────── */
 
-/* Contain: isolates logo SVG from main page layout/paint */
-[style*="contain"] {
+/* Nav / inline Logo only — hero logo skips this so SVG gradients & filters match desktop on mobile GPUs */
+.logo-compact {
+  contain: layout style paint;
   will-change: transform;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
@@ -145,6 +169,39 @@ body {
 /* Settings panel slide-in animation */
 .settings-panel {
   animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Sidebar service health — soft staggered “live” pulse (respect reduced motion) */
+@keyframes manthana-service-dot-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  40% {
+    opacity: 0.72;
+    transform: scale(1.12);
+    box-shadow: 0 0 10px 2px color-mix(in srgb, currentColor 40%, transparent);
+  }
+  70% {
+    opacity: 0.92;
+    transform: scale(1.04);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, currentColor 25%, transparent);
+  }
+}
+
+.service-health-dot {
+  color: inherit;
+  animation: manthana-service-dot-breathe 2.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .service-health-dot {
+    animation: none;
+    box-shadow: none !important;
+  }
 }
 
 @keyframes slideInRight {

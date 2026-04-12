@@ -7,15 +7,17 @@
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",
-    "test-ses": "node --env-file=.env.local scripts/test-ses.mjs"
+    "test-ses": "node --env-file=.env.local scripts/test-ses.mjs",
+    "vercel:push-env": "node scripts/push-env-vercel.cjs",
+    "icons:pwa": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.750.0",
     "@cornerstonejs/core": "^4.20.0",
     "@cornerstonejs/dicom-image-loader": "^4.20.0",
     "@cornerstonejs/tools": "^4.20.0",
-    "better-auth": "^1.5.5",
-    "better-sqlite3": "^12.8.0",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.102.0",
     "d3-array": "^3.2.4",
     "d3-interpolate": "^3.0.1",
     "dcmjs": "^0.50.1",
@@ -28,10 +30,10 @@
     "razorpay": "^2.9.6",
     "react": "^18",
     "react-dom": "^18",
+    "standardwebhooks": "^1.0.0",
     "swr": "^2.2.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^18",

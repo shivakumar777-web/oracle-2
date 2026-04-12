@@ -3,31 +3,22 @@
  * Updates user subscription status on payment events
  */
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import Database from "better-sqlite3";
-import path from "path";
 import { sendPaymentReceipt } from "@/lib/email/ses";
 import {
   verifyWebhookSignature,
   getPlanNameFromRazorpayId,
   getScansLimitForPlan,
-  PlanId,
 } from "@/lib/razorpay/client";
-
-const dbPath = path.join(process.cwd(), "auth.db");
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export async function POST(req: Request) {
   const body = await req.text();
   const signature = req.headers.get("x-razorpay-signature");
 
   if (!signature) {
-    return NextResponse.json(
-      { error: "Missing signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
 
-  // Verify webhook authenticity
   const isValid = verifyWebhookSignature(
     body,
     signature,
@@ -36,16 +27,12 @@ export async function POST(req: Request) {
 
   if (!isValid) {
     console.error("Invalid Razorpay webhook signature");
-    return NextResponse.json(
-      { error: "Invalid signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  const event = JSON.parse(body);
+  const event = JSON.parse(body) as { event: string; payload: Record<string, { entity: Record<string, unknown> }> };
 
-  // Connect to database
-  const db = new Database(dbPath);
+  const supabase = createServiceRoleClient();
 
   try {
     console.log(`[Razorpay Webhook] Event: ${event.event}`);
@@ -53,62 +40,84 @@ export async function POST(req: Request) {
     switch (event.event) {
       case "subscription.activated":
       case "subscription.charged": {
-        const subscription = event.payload.subscription.entity;
-        const payment = event.payload.payment?.entity;
-
-        // Find user by razorpayCustomerId
-        const user = db
-          .prepare("SELECT * FROM user WHERE razorpayCustomerId = ?")
-          .get(subscription.customer_id) as
-          | {
-              id: string;
-              email: string;
-              name?: string;
-              razorpayCustomerId?: string;
-            }
+        const subscription = event.payload.subscription.entity as {
+          id: string;
+          customer_id: string;
+          plan_id: string;
+          current_end: number;
+        };
+        const payment = event.payload.payment?.entity as
+          | { amount: number; invoice_id?: string }
           | undefined;
 
-        if (user) {
-          // Determine plan from razorpay plan_id
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("razorpay_customer_id", subscription.customer_id)
+          .maybeSingle();
+
+        if (profile?.id) {
           const planName = getPlanNameFromRazorpayId(subscription.plan_id);
           const scansLimit = getScansLimitForPlan(planName);
+          const curMonth = new Date().toISOString().slice(0, 7);
+          const curDay = new Date().toISOString().slice(0, 10);
 
-          // Update user subscription status
-          db.prepare(
-            `
-            UPDATE user 
-            SET subscriptionStatus = 'active',
-                subscriptionPlan = ?,
-                razorpaySubscriptionId = ?,
-                subscriptionExpiresAt = ?,
-                scansLimit = ?,
-                scansThisMonth = 0
-            WHERE id = ?
-          `
-          ).run(
-            planName,
-            subscription.id,
-            subscription.current_end,
-            scansLimit,
-            user.id
+          const labsReset =
+            planName === "pro"
+              ? {
+                  labs_usage_month: curMonth,
+                  labs_light_count: 0,
+                  labs_ct_mri_count: 0,
+                  labs_medium_count: 0,
+                  labs_usage_day: curDay,
+                  labs_scans_today: 0,
+                }
+              : planName === "proplus"
+                ? {
+                    labs_usage_month: curMonth,
+                    labs_light_count: 0,
+                    labs_ct_mri_count: 0,
+                    labs_medium_count: 0,
+                    labs_usage_day: curDay,
+                    labs_scans_today: 0,
+                  }
+                : {};
+
+          const { error: upErr } = await supabase
+            .from("profiles")
+            .update({
+              subscription_status: "active",
+              subscription_plan: planName,
+              razorpay_subscription_id: subscription.id,
+              subscription_expires_at: subscription.current_end,
+              scans_limit: scansLimit,
+              scans_this_month: 0,
+              ...labsReset,
+            })
+            .eq("id", profile.id);
+
+          if (upErr) {
+            console.error("[Razorpay Webhook] Update failed:", upErr);
+          } else {
+            console.log(
+              `[Razorpay Webhook] User ${profile.id} subscription activated: ${planName}`
+            );
+          }
+
+          const { data: userRow } = await supabase.auth.admin.getUserById(
+            profile.id
           );
+          const email = userRow.user?.email;
 
-          console.log(
-            `[Razorpay Webhook] User ${user.id} subscription activated: ${planName}`
-          );
-
-          // Send payment receipt email
-          if (payment) {
+          if (payment && email) {
             try {
               await sendPaymentReceipt(
-                user.email,
-                payment.amount / 100, // Convert from paise to rupees
+                email,
+                payment.amount / 100,
                 planName,
                 payment.invoice_id || subscription.id
               );
-              console.log(
-                `[Razorpay Webhook] Payment receipt sent to ${user.email}`
-              );
+              console.log(`[Razorpay Webhook] Payment receipt sent to ${email}`);
             } catch (emailError) {
               console.error(
                 "[Razorpay Webhook] Failed to send payment receipt:",
@@ -125,17 +134,26 @@ export async function POST(req: Request) {
       }
 
       case "subscription.cancelled": {
-        const subscription = event.payload.subscription.entity;
+        const subscription = event.payload.subscription.entity as { id: string };
 
-        db.prepare(
-          `
-          UPDATE user 
-          SET subscriptionStatus = 'cancelled',
-              subscriptionPlan = 'free',
-              scansLimit = 10
-          WHERE razorpaySubscriptionId = ?
-        `
-        ).run(subscription.id);
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            subscription_status: "cancelled",
+            subscription_plan: "free",
+            scans_limit: 10,
+            labs_usage_month: null,
+            labs_usage_day: null,
+            labs_light_count: 0,
+            labs_ct_mri_count: 0,
+            labs_medium_count: 0,
+            labs_scans_today: 0,
+          })
+          .eq("razorpay_subscription_id", subscription.id);
+
+        if (error) {
+          console.error("[Razorpay Webhook] cancel update:", error);
+        }
 
         console.log(
           `[Razorpay Webhook] Subscription ${subscription.id} cancelled`
@@ -144,37 +162,44 @@ export async function POST(req: Request) {
       }
 
       case "subscription.expired": {
-        const subscription = event.payload.subscription.entity;
+        const subscription = event.payload.subscription.entity as { id: string };
 
-        db.prepare(
-          `
-          UPDATE user 
-          SET subscriptionStatus = 'inactive',
-              subscriptionPlan = 'free',
-              razorpaySubscriptionId = NULL,
-              subscriptionExpiresAt = NULL,
-              scansLimit = 10
-          WHERE razorpaySubscriptionId = ?
-        `
-        ).run(subscription.id);
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            subscription_status: "inactive",
+            subscription_plan: "free",
+            razorpay_subscription_id: null,
+            subscription_expires_at: null,
+            scans_limit: 10,
+            labs_usage_month: null,
+            labs_usage_day: null,
+            labs_light_count: 0,
+            labs_ct_mri_count: 0,
+            labs_medium_count: 0,
+            labs_scans_today: 0,
+          })
+          .eq("razorpay_subscription_id", subscription.id);
 
-        console.log(
-          `[Razorpay Webhook] Subscription ${subscription.id} expired`
-        );
+        if (error) {
+          console.error("[Razorpay Webhook] expired update:", error);
+        }
+
+        console.log(`[Razorpay Webhook] Subscription ${subscription.id} expired`);
         break;
       }
 
       case "subscription.pending": {
-        // Payment failed but subscription exists - mark past_due
-        const subscription = event.payload.subscription.entity;
+        const subscription = event.payload.subscription.entity as { id: string };
 
-        db.prepare(
-          `
-          UPDATE user 
-          SET subscriptionStatus = 'past_due'
-          WHERE razorpaySubscriptionId = ?
-        `
-        ).run(subscription.id);
+        const { error } = await supabase
+          .from("profiles")
+          .update({ subscription_status: "past_due" })
+          .eq("razorpay_subscription_id", subscription.id);
+
+        if (error) {
+          console.error("[Razorpay Webhook] pending update:", error);
+        }
 
         console.warn(
           `[Razorpay Webhook] Subscription ${subscription.id} marked as past_due`
@@ -183,11 +208,10 @@ export async function POST(req: Request) {
       }
 
       case "payment.failed": {
-        const payment = event.payload.payment.entity;
+        const payment = event.payload.payment.entity as { order_id?: string };
         console.error(
           `[Razorpay Webhook] Payment failed for order ${payment.order_id}`
         );
-        // Could add user notification here
         break;
       }
 
@@ -199,11 +223,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("[Razorpay Webhook] Processing error:", error);
-    return NextResponse.json(
-      { error: "Processing failed" },
-      { status: 500 }
-    );
-  } finally {
-    db.close();
+    return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   }
 }

@@ -8,14 +8,13 @@ import type { ApiEnvelope } from "./envelope";
 
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
-    const session = await authClient.getSession();
-    if (!session?.data?.session) return {};
-    const { data } = await authClient.token();
-    if (data?.token) return { Authorization: `Bearer ${data.token}` };
+    const { data } = await authClient.getSession();
+    const session = data?.session;
+    if (!session?.access_token) return {};
+    return { Authorization: `Bearer ${session.access_token}` };
   } catch {
     return {};
   }
-  return {};
 }
 
 /**

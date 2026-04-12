@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Logo from "@/components/Logo";
 import SearchBar from "@/components/SearchBar";
-import QuickActionGrid from "@/components/QuickActionGrid";
 import DomainPills from "@/components/DomainPills";
 import ChatMessage, { ChatMessageData } from "@/components/ChatMessage";
 import ChurningState from "@/components/ChurningState";
@@ -15,6 +14,11 @@ import ManthanWebResults from "@/components/ManthanWebResults";
 import { useLang } from "@/components/LangProvider";
 import { useToast } from "@/hooks/useToast";
 import { isManthanaWebLocked } from "@/lib/manthana-web-locked";
+import { useProductAccess } from "@/components/ProductAccessProvider";
+import {
+  consumeOracleLabsHandoff,
+  ORACLE_LABS_HANDOFF_QUERY,
+} from "@/lib/analyse/oracle-handoff";
 
 
 export default function OraclePage() {
@@ -47,7 +51,6 @@ export default function OraclePage() {
   
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isThinking, setIsThinking] = useState(false);
-  const [deepResearch, setDeepResearch] = useState(false);
   const [isEmergencyResponse, setIsEmergencyResponse] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [searchPage, setSearchPage] = useState(1);
@@ -67,7 +70,95 @@ export default function OraclePage() {
   const hasMessages = messages.length > 0;
   const { lang } = useLang();
   const { addToast } = useToast();
+  const access = useProductAccess();
+  const oracleLimited =
+    !access.loading && access.oracleTier === "limited";
   const webLocked = isManthanaWebLocked();
+
+  const labsHandoffFlag = searchParams.get(ORACLE_LABS_HANDOFF_QUERY);
+  const labsHandoffConsumedRef = useRef(false);
+
+  const reserveOracleSlot = async (): Promise<boolean> => {
+    if (!oracleLimited) return true;
+    const res = await fetch("/api/me/oracle-consume", { method: "POST" });
+    if (res.status === 429) {
+      const j = (await res.json().catch(() => ({}))) as { cap?: number };
+      addToast(
+        `Daily Oracle limit reached (${j.cap ?? access.oracleDailyCap} messages). Upgrade to PRO for clinical depth, Manthana Web, and full Labs.`,
+        "error",
+        9000
+      );
+      return false;
+    }
+    void access.refetch();
+    return true;
+  };
+
+  useEffect(() => {
+    if (searchParams.get("labsLocked") !== "1") return;
+    addToast(
+      "Manthana Labs: your 3 free trial scans are used up, or you need an active PRO plan. Open Plans to upgrade.",
+      "warning",
+      10000
+    );
+    router.replace("/", { scroll: false });
+  }, [searchParams, router, addToast]);
+
+  useEffect(() => {
+    if (access.loading || access.oracleTier === "full") return;
+    setIntensity((i) => (i === "clinical" || i === "deep" ? "quick" : i));
+    // Free tier: keep M5; still reset Web / Deep Research-only modes.
+    setMode((m) => (m === "search" || m === "deep-research" ? "auto" : m));
+  }, [access.loading, access.oracleTier]);
+
+  // Manthana Labs → Oracle: load one-shot report context from sessionStorage (?labsHandoff=1)
+  useEffect(() => {
+    if (labsHandoffFlag !== "1" || access.loading || labsHandoffConsumedRef.current) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(ORACLE_LABS_HANDOFF_QUERY);
+    const qs = params.toString();
+    const cleanPath = qs ? `/?${qs}` : "/";
+
+    const payload = consumeOracleLabsHandoff();
+    labsHandoffConsumedRef.current = true;
+
+    if (!payload) {
+      router.replace(cleanPath, { scroll: false });
+      return;
+    }
+
+    const msgId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `labs-${Date.now()}`;
+
+    setMessages([
+      {
+        id: msgId,
+        role: "user",
+        content: payload.reportMarkdown,
+      },
+    ]);
+    setQuery(payload.suggestedFollowUp);
+    setSearchResults(null);
+    setMode("m5");
+    setActiveDomain("m5");
+    setIntensity("clinical");
+    setPersona("clinician");
+    addToast(
+      "Labs report loaded. M5 — All 5 is selected; adjust domain or intensity, then press send.",
+      "success",
+      9000
+    );
+    router.replace(cleanPath, { scroll: false });
+  }, [
+    labsHandoffFlag,
+    access.loading,
+    searchParams,
+    router,
+    addToast,
+  ]);
 
   // Deep link ?mode=search while Web is locked → dedicated Coming Soon route
   useEffect(() => {
@@ -198,8 +289,15 @@ export default function OraclePage() {
   };
 
   const coreSubmit = async (trimmed: string) => {
+    if (access.loading) return;
+    if (oracleLimited && mode === "search") {
+      addToast("Manthana Web search requires PRO.", "warning");
+      return;
+    }
 
-    // Add user message
+    const reserved = await reserveOracleSlot();
+    if (!reserved) return;
+
     const userMsg: ChatMessageData = {
       id: Date.now().toString(),
       role: "user",
@@ -353,11 +451,21 @@ export default function OraclePage() {
         activeDomain,
         lang,
         {
-          intensity: intensity as "auto" | "quick" | "clinical" | "deep",
-          persona: persona as "auto" | "patient" | "clinician" | "researcher" | "student",
-          evidence: evidence as "auto" | "gold" | "all" | "guidelines" | "trials",
-          enable_web: true,
-          enable_trials: deepResearch,
+          intensity: oracleLimited
+            ? "quick"
+            : ((intensity === "deep" ? "clinical" : intensity) as
+                | "auto"
+                | "quick"
+                | "clinical"
+                | "deep"),
+          persona: (oracleLimited
+            ? "patient"
+            : persona) as "auto" | "patient" | "clinician" | "researcher" | "student",
+          evidence: (oracleLimited
+            ? "gold"
+            : evidence) as "auto" | "gold" | "all" | "guidelines" | "trials",
+          enable_web: !oracleLimited,
+          enable_trials: false,
         },
         (token: string) => {
           streamContentRef.current += token;
@@ -390,7 +498,7 @@ export default function OraclePage() {
                     : m
                 )
               );
-            } else if (!webLocked) {
+            } else if (!webLocked && !oracleLimited) {
               const rawData = await fetchSearchWithSources(
                 trimmed,
                 activeDomain,
@@ -488,7 +596,7 @@ export default function OraclePage() {
   };
 
   const handleSubmit = async (val: string) => {
-    if (!val.trim() || isThinking) return;
+    if (!val.trim() || isThinking || access.loading) return;
     const trimmed = val.trim();
 
     const drugs = detectDrugNames(trimmed);
@@ -511,83 +619,6 @@ export default function OraclePage() {
     await coreSubmit(trimmed);
   };
 
-  const handleAction = (action: string) => {
-    if (action === "Medical Web Search") {
-      if (webLocked) {
-        router.push("/search");
-        return;
-      }
-      setActiveDomain("allopathy");
-      setMode("search");
-      setQuery("Latest type 2 diabetes treatment guidelines 2024");
-      setTimeout(() => {
-        void handleSubmit("Latest type 2 diabetes treatment guidelines 2024");
-      }, 0);
-      return;
-    }
-
-    if (action === "Check Drug Interaction") {
-      const starter =
-        "Check the interaction between Ashwagandha and a beta-blocker.";
-      setActiveDomain("allopathy");
-      setMode("auto");
-      setQuery(starter);
-      setTimeout(() => {
-        void handleSubmit(starter);
-      }, 0);
-      return;
-    }
-
-    if (action === "Ask Ayurvedic Query") {
-      setActiveDomain("ayurveda");
-      setQuery("What does Ayurveda say about managing chronic inflammation?");
-      return;
-    }
-
-    if (action === "Summarize Clinical Trial") {
-      const starter =
-        "Summarize a recent clinical trial for Ashwagandha in stress management.";
-      setActiveDomain("allopathy");
-      setMode("deep-research");
-      setQuery(starter);
-      setTimeout(() => {
-        void handleSubmit(starter);
-      }, 0);
-      return;
-    }
-
-    if (action === "Find Clinical Trial") {
-      if (webLocked) {
-        router.push("/search");
-        return;
-      }
-      const starter =
-        "Find ongoing clinical trials for diabetes treatment in India.";
-      setActiveDomain("allopathy");
-      setMode("search");
-      setQuery(starter);
-      setTimeout(() => {
-        void handleSubmit(starter);
-      }, 0);
-      return;
-    }
-
-    if (action === "Compare Treatments") {
-      const starter =
-        "Compare Allopathic vs Ayurvedic treatment approaches for hypertension with evidence.";
-      setActiveDomain("allopathy");
-      setMode("deep-research");
-      setQuery(starter);
-      setTimeout(() => {
-        void handleSubmit(starter);
-      }, 0);
-      return;
-    }
-
-    // Fallback: just prefill with the action label
-    setQuery(action);
-  };
-
   // Keyboard shortcut for clearing chat: Cmd/Ctrl + K
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -603,11 +634,19 @@ export default function OraclePage() {
 
   const handleModeChange = (newMode: string) => {
     if (newMode === "deep-research") {
+      if (oracleLimited) {
+        addToast("Med Deep Research requires PRO.", "info");
+        return;
+      }
       router.push("/deep-research");
       return;
     }
     if (newMode === "search" && webLocked) {
       router.push("/search");
+      return;
+    }
+    if (newMode === "search" && oracleLimited) {
+      addToast("Manthana Web search requires PRO.", "info");
       return;
     }
     if (newMode === "m5") {
@@ -694,11 +733,6 @@ export default function OraclePage() {
           <p className="font-body text-xs text-gold-s/50 text-center">
             मंथन — ज्ञान से अमृत
           </p>
-
-          {/* Quick Actions */}
-          <div className="mt-4 w-full">
-            <QuickActionGrid onAction={handleAction} manthanaWebLocked={webLocked} />
-          </div>
 
           {/* ═══ PHILOSOPHY SECTION ═══ */}
           <div className="w-full mt-16 animate-fi" style={{ animationDelay: "2.8s" }}>
@@ -899,13 +933,12 @@ export default function OraclePage() {
           intensity={intensity}
           persona={persona}
           evidence={evidence}
-          deepResearch={deepResearch}
-          onDeepResearchChange={setDeepResearch}
           onIntensityChange={setIntensity}
           onPersonaChange={setPersona}
           onEvidenceChange={setEvidence}
           isThinking={isThinking}
           onStop={() => abortRef.current?.abort()}
+          oracleLimited={oracleLimited}
         />
       </div>
     </div>

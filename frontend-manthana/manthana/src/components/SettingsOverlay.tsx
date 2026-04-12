@@ -10,6 +10,8 @@ const PROFESSION_OPTIONS = ["Doctor", "Researcher", "Student", "Patient", "Pharm
 
 interface SettingsOverlayProps {
   onClose: () => void;
+  /** Opens this accordion (e.g. `subscription`) when overlay mounts — from sidebar usage or /?settingsTab= */
+  initialSection?: string | null;
 }
 
 /* ═══════════════════════════════════
@@ -154,7 +156,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-white/[0.04]">
+    <div id={id} className="border-b border-white/[0.04]">
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-3.5 px-6 py-4 hover:bg-white/[0.02] transition-colors group"
@@ -174,10 +176,15 @@ function Section({
           ▾
         </span>
       </button>
+      {/* Tall sections (e.g. Subscription) must not clip: parent `.settings-scroll` scrolls the full panel */}
       <div
-        className={`overflow-hidden transition-all duration-300 ease-out ${isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"}`}
+        className={`transition-[max-height,opacity] duration-300 ease-out ${
+          isOpen
+            ? "max-h-[8000px] opacity-100"
+            : "max-h-0 opacity-0 overflow-hidden pointer-events-none"
+        }`}
       >
-        <div className="px-6 pb-5 space-y-5">{children}</div>
+        <div className="px-6 pb-5 space-y-5 min-h-0">{children}</div>
       </div>
     </div>
   );
@@ -198,7 +205,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 /* ═══════════════════════════════════
    MAIN SETTINGS OVERLAY
    ═══════════════════════════════════ */
-export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
+export default function SettingsOverlay({ onClose, initialSection }: SettingsOverlayProps) {
   const { data: session } = authClient.useSession();
   const [profession, setProfession] = useState("Doctor");
   const [detailLevel, setDetailLevel] = useState(1);
@@ -210,7 +217,25 @@ export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
   const [analytics, setAnalytics] = useState(false);
   const [language, setLanguage] = useState("en");
   const [defaultMode, setDefaultMode] = useState("auto");
-  const [openSection, setOpenSection] = useState<string | null>("interface");
+  const [openSection, setOpenSection] = useState<string | null>(
+    initialSection ?? "interface"
+  );
+
+  /** Deep links (e.g. sidebar “Your plan”) must open Subscription even if overlay remount timing varies */
+  useEffect(() => {
+    if (initialSection) setOpenSection(initialSection);
+  }, [initialSection]);
+
+  useEffect(() => {
+    if (openSection !== "subscription") return;
+    const t = window.setTimeout(() => {
+      document.getElementById("subscription")?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 320);
+    return () => window.clearTimeout(t);
+  }, [openSection]);
 
   const defaultModeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
@@ -232,6 +257,58 @@ export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
   const toggleSection = (id: string) =>
     setOpenSection((prev) => (prev === id ? null : id));
 
+  const subscriptionOnly = initialSection === "subscription";
+
+  if (subscriptionOnly) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-stretch justify-center">
+        <div
+          className="absolute inset-0 bg-black/75 backdrop-blur-md"
+          onClick={onClose}
+          aria-hidden
+        />
+        <div
+          className="relative z-10 flex flex-col w-full h-[100dvh] max-h-[100dvh] min-h-0 bg-[#050A14] border-0 md:border md:border-gold/[0.12] md:max-w-3xl md:my-auto md:max-h-[min(100dvh,920px)] md:rounded-2xl md:shadow-[0_0_80px_rgba(0,0,0,0.45)] overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="subscription-screen-title"
+        >
+          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-4 border-b border-white/[0.06] flex-shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] font-ui text-[10px] tracking-[0.15em] uppercase text-cream/60 hover:text-cream hover:border-gold/25 transition-colors"
+            >
+              Back
+            </button>
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+              <h2
+                id="subscription-screen-title"
+                className="font-ui text-[10px] sm:text-xs tracking-[0.35em] uppercase text-cream/50"
+              >
+                Plans &amp; billing
+              </h2>
+              <p className="font-body text-[9px] text-cream/20 mt-0.5 hidden sm:block">
+                Compare tiers and upgrade when you are ready
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 shrink-0 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-cream/30 hover:text-cream/80 hover:bg-white/[0.06] hover:border-gold/20 transition-all"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain settings-scroll pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] px-3 sm:px-6 pt-4">
+            <SubscriptionCard />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}
@@ -241,7 +318,7 @@ export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
       />
 
       {/* Panel — slides from right */}
-      <div className="settings-panel relative w-full max-w-md h-full bg-[#050A14] border-l border-gold/[0.08] flex flex-col">
+      <div className="settings-panel relative w-full max-w-md h-full max-h-[100dvh] bg-[#050A14] border-l border-gold/[0.08] flex flex-col min-h-0">
         {/* ─── Header ─── */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.06] flex-shrink-0">
           <div>
@@ -263,29 +340,41 @@ export default function SettingsOverlay({ onClose }: SettingsOverlayProps) {
         </div>
 
         {/* ─── Scrollable sections ─── */}
-        <div className="flex-1 overflow-y-auto settings-scroll">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain settings-scroll pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
           {/* 0. Account */}
           <div className="border-b border-white/[0.04] px-6 py-4">
             {session?.user ? (
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-3">
                 <div className="min-w-0">
-                  <p className="font-ui text-[10px] text-cream/60 truncate">
-                    {session.user.name ?? session.user.email}
+                  <p className="font-ui text-[10px] uppercase tracking-[0.14em] text-cream/35 mb-1">
+                    Signed in
                   </p>
-                  <p className="font-body text-[9px] text-cream/30 truncate">
+                  <p className="font-ui text-xs text-cream/80 truncate">
+                    {(session.user as { name?: string }).name ?? session.user.email}
+                  </p>
+                  <p className="font-body text-[10px] text-cream/35 truncate">
                     {session.user.email}
+                  </p>
+                  <p className="font-body text-[9px] text-cream/20 mt-1.5">
+                    Your session stays on this browser until you log out.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    authClient.signOut({
-                      fetchOptions: { onSuccess: () => { onClose(); window.location.reload(); } },
+                    void authClient.signOut({
+                      fetchOptions: {
+                        onSuccess: () => {
+                          onClose();
+                          window.location.assign("/");
+                        },
+                      },
                     });
                   }}
-                  className="font-ui text-[9px] tracking-[0.12em] uppercase text-cream/40 hover:text-gold-h transition-colors px-3 py-1.5 rounded-lg border border-white/[0.08] hover:border-gold/30"
+                  className="w-full py-2.5 rounded-lg font-ui text-[10px] tracking-[0.18em] uppercase
+                    bg-red-500/[0.08] border border-red-400/25 text-red-200/90 hover:bg-red-500/[0.14] hover:border-red-400/40 transition-colors"
                 >
-                  Sign out
+                  Log out
                 </button>
               </div>
             ) : (

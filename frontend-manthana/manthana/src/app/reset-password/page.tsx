@@ -2,25 +2,45 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { SUPABASE_AUTH_DISABLED_MESSAGE } from "@/lib/supabase/env";
 
 function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [token, setToken] = useState<string | null>(null);
+  const [recoveryReady, setRecoveryReady] = useState(false);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const searchParams = useSearchParams();
+  const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
-    const tokenParam = searchParams.get("token");
-    if (tokenParam) {
-      setToken(tokenParam);
+    const supabase = createBrowserSupabaseClient();
+    if (!supabase) {
+      setConfigError(SUPABASE_AUTH_DISABLED_MESSAGE);
+      return;
     }
-  }, [searchParams]);
+
+    const init = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session) {
+        setRecoveryReady(true);
+      }
+    };
+    void init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryReady(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +55,8 @@ function ResetPasswordForm() {
       return;
     }
 
-    if (!token) {
-      setError("Invalid or expired reset link");
+    if (!recoveryReady) {
+      setError("Invalid or expired reset link. Request a new one from forgot password.");
       return;
     }
 
@@ -44,27 +64,51 @@ function ResetPasswordForm() {
     setError(null);
 
     try {
-      await authClient.resetPassword({
-        newPassword: password,
-        token,
-      });
+      const supabase = createBrowserSupabaseClient();
+      if (!supabase) {
+        setError(SUPABASE_AUTH_DISABLED_MESSAGE);
+        return;
+      }
+      const { error: upErr } = await supabase.auth.updateUser({ password });
+      if (upErr) throw new Error(upErr.message);
       setSuccess(true);
-    } catch (err: any) {
-      setError(err?.message || "Failed to reset password. Link may be expired.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to reset password. Link may be expired.";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!token) {
+  if (configError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#020610] p-4">
+        <div className="w-full max-w-md text-center rounded-xl border border-white/[0.08] bg-black/40 p-8">
+          <p className="text-red-300 text-sm mb-4">{configError}</p>
+          <Link
+            href="/sign-in"
+            className="text-gold-h hover:text-gold-p underline underline-offset-2 text-sm"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!recoveryReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#020610] p-4">
         <div className="w-full max-w-md text-center">
-          <div className="text-4xl mb-4">⚠️</div>
-          <p className="text-cream/70">Invalid or expired reset link.</p>
+          <div className="text-4xl mb-4">⏳</div>
+          <p className="text-cream/70 mb-4">Verifying reset link…</p>
+          <p className="text-cream/40 text-sm mb-4">
+            If this does not clear, open the link from your email again or request a new reset.
+          </p>
           <Link
             href="/forgot-password"
-            className="text-gold-h hover:text-gold-p underline underline-offset-2 mt-4 inline-block"
+            className="text-gold-h hover:text-gold-p underline underline-offset-2 inline-block"
           >
             Request new link
           </Link>
@@ -145,14 +189,15 @@ function ResetPasswordForm() {
   );
 }
 
-// Export with Suspense to handle useSearchParams
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-[#020610]">
-        <div className="text-cream/50">Loading...</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#020610]">
+          <div className="text-cream/50">Loading...</div>
+        </div>
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
   );

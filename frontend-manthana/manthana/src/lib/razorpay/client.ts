@@ -14,12 +14,18 @@ export const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET || "placeholder_secret",
 });
 
+/** Pro Plus Razorpay plan id; falls back to legacy RAZORPAY_PLAN_ENTERPRISE_ID if unset. */
+const PROPLUS_PLAN_ID =
+  process.env.RAZORPAY_PLAN_PROPLUS_ID?.trim() ||
+  process.env.RAZORPAY_PLAN_ENTERPRISE_ID?.trim();
+
 // Plan IDs from Razorpay Dashboard
 export const RAZORPAY_PLANS = {
   free: null, // No Razorpay plan for free tier
-  basic: process.env.RAZORPAY_PLAN_BASIC_ID, // Create in dashboard
+  /** Legacy subscriptions only — not offered in current product UI */
+  basic: process.env.RAZORPAY_PLAN_BASIC_ID,
   pro: process.env.RAZORPAY_PLAN_PRO_ID,
-  enterprise: process.env.RAZORPAY_PLAN_ENTERPRISE_ID,
+  proplus: PROPLUS_PLAN_ID,
 } as const;
 
 export type PlanId = keyof typeof RAZORPAY_PLANS;
@@ -53,8 +59,27 @@ export async function createRazorpayCustomer(
 
   return {
     id: customer.id,
-    email: customer.email,
+    email: customer.email ?? email,
     name: customer.name,
+  };
+}
+
+/** Normalize Razorpay subscription fields (API allows nulls; SDK create types omit `customer_id`). */
+function subscriptionFromRazorpay(sub: {
+  id: string;
+  status: string;
+  current_end?: number | null;
+  current_start?: number | null;
+  plan_id: string;
+  customer_id?: string | null;
+}): SubscriptionDetails {
+  return {
+    id: sub.id,
+    status: sub.status as SubscriptionDetails["status"],
+    current_end: sub.current_end ?? 0,
+    current_start: sub.current_start ?? 0,
+    plan_id: sub.plan_id,
+    customer_id: sub.customer_id ?? "",
   };
 }
 
@@ -65,21 +90,15 @@ export async function createRazorpaySubscription(
   customerId: string,
   planId: string
 ): Promise<SubscriptionDetails> {
+  // SDK `RazorpaySubscriptionCreateRequestBody` omits `customer_id`; API accepts it.
   const subscription = await razorpay.subscriptions.create({
     plan_id: planId,
     customer_id: customerId,
-    total_count: 12, // 12 months, or omit for ongoing
-    customer_notify: 1, // Notify customer via email
-  });
+    total_count: 12,
+    customer_notify: 1,
+  } as never);
 
-  return {
-    id: subscription.id,
-    status: subscription.status as SubscriptionDetails["status"],
-    current_end: subscription.current_end,
-    current_start: subscription.current_start,
-    plan_id: subscription.plan_id,
-    customer_id: subscription.customer_id,
-  };
+  return subscriptionFromRazorpay(subscription);
 }
 
 /**
@@ -89,15 +108,8 @@ export async function cancelRazorpaySubscription(
   subscriptionId: string,
   cancelAtEndOfPeriod: boolean = true
 ): Promise<void> {
-  if (cancelAtEndOfPeriod) {
-    // Cancel at end of current billing cycle
-    await razorpay.subscriptions.cancel(subscriptionId, {
-      cancel_at_cycle_end: true,
-    });
-  } else {
-    // Cancel immediately
-    await razorpay.subscriptions.cancel(subscriptionId);
-  }
+  // Second arg: `true` / non-zero = end of cycle; `false` / `0` = immediate (per SDK typings).
+  await razorpay.subscriptions.cancel(subscriptionId, cancelAtEndOfPeriod);
 }
 
 /**
@@ -108,14 +120,7 @@ export async function getRazorpaySubscription(
 ): Promise<SubscriptionDetails> {
   const subscription = await razorpay.subscriptions.fetch(subscriptionId);
 
-  return {
-    id: subscription.id,
-    status: subscription.status as SubscriptionDetails["status"],
-    current_end: subscription.current_end,
-    current_start: subscription.current_start,
-    plan_id: subscription.plan_id,
-    customer_id: subscription.customer_id,
-  };
+  return subscriptionFromRazorpay(subscription);
 }
 
 /**
@@ -140,10 +145,21 @@ export function verifyWebhookSignature(
  */
 export function getPlanNameFromRazorpayId(planId: string): PlanId {
   if (planId === process.env.RAZORPAY_PLAN_PRO_ID) return "pro";
-  if (planId === process.env.RAZORPAY_PLAN_ENTERPRISE_ID) return "enterprise";
+  if (
+    planId === process.env.RAZORPAY_PLAN_PROPLUS_ID ||
+    planId === process.env.RAZORPAY_PLAN_ENTERPRISE_ID
+  ) {
+    return "proplus";
+  }
   if (planId === process.env.RAZORPAY_PLAN_BASIC_ID) return "basic";
-  return "basic"; // Default fallback
+  return "basic";
 }
+
+/** Stored in Postgres when plan has unlimited scans (Infinity is not JSON/DB-safe). */
+export const SCANS_LIMIT_UNLIMITED_SENTINEL = 99_999_999;
+
+/** Active Pro (₹399): monthly Labs cap enforced in app + `consume_labs_scan` RPC. */
+export const PRO_LABS_MONTHLY_SCAN_CAP = 150;
 
 /**
  * Get scans limit for each plan
@@ -151,13 +167,14 @@ export function getPlanNameFromRazorpayId(planId: string): PlanId {
 export function getScansLimitForPlan(plan: PlanId): number {
   switch (plan) {
     case "free":
-      return 10;
+      return 0;
     case "basic":
       return 100;
     case "pro":
-    case "enterprise":
-      return Infinity;
+      return PRO_LABS_MONTHLY_SCAN_CAP;
+    case "proplus":
+      return PRO_LABS_MONTHLY_SCAN_CAP;
     default:
-      return 10;
+      return 0;
   }
 }

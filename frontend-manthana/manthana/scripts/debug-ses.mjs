@@ -3,7 +3,7 @@ console.log("AWS_REGION:", process.env.AWS_REGION);
 console.log("AWS_ACCESS_KEY_ID present:", !!process.env.AWS_ACCESS_KEY_ID);
 console.log("AWS_SECRET_ACCESS_KEY present:", !!process.env.AWS_SECRET_ACCESS_KEY);
 console.log("NEXT_PUBLIC_APP_DOMAIN:", process.env.NEXT_PUBLIC_APP_DOMAIN);
-console.log("BETTER_AUTH_SECRET present:", !!process.env.BETTER_AUTH_SECRET);
+console.log("NEXT_PUBLIC_SUPABASE_URL present:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
