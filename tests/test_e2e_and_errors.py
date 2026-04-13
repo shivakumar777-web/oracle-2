@@ -97,7 +97,7 @@ async def test_e2e_full_search_flow(respx_mock, monkeypatch):
         )
         with patch(
             "manthana_inference.chat_complete_sync",
-            return_value=("Synthesized medical answer.", "m"),
+            return_value=("Synthesized medical answer.", "m", {}),
         ):
             with patch("orchestrator._get_redis", new_callable=AsyncMock, return_value=None):
                 async with AsyncClient(

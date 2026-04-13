@@ -92,6 +92,25 @@ async def lifespan(app: FastAPI):
     # Store settings for access in routers
     app.state.settings = settings
 
+    # Warm OpenRouter / cloud_inference.yaml so chat can fail gracefully (SSE) instead of HTTP 500
+    try:
+        from services.shared.openrouter_helpers import get_inference_config
+
+        get_inference_config()
+        app.state.cloud_inference_ok = True
+        app.state.cloud_inference_error = ""
+        json_log("manthana.oracle", "info", event="cloud_inference_config_loaded")
+    except Exception as e:
+        app.state.cloud_inference_ok = False
+        app.state.cloud_inference_error = str(e)
+        json_log(
+            "manthana.oracle",
+            "error",
+            event="cloud_inference_config_failed",
+            error=str(e),
+            hint="Set CLOUD_INFERENCE_CONFIG_PATH to cloud_inference.yaml (see Dockerfile) or mount the file.",
+        )
+
     json_log(
         "manthana.oracle", "info",
         event="oracle_initialized",

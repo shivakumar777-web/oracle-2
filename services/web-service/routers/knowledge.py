@@ -59,7 +59,7 @@ async def _openrouter_complete(
             from manthana_inference import build_openrouter_async_client
 
             client = build_openrouter_async_client(api_key, cfg)
-            text, _m = await chat_complete_async(client, cfg, "web_knowledge", messages)
+            text, _m, *_ = await chat_complete_async(client, cfg, "web_knowledge", messages)
             return (text or "").strip()
         except Exception as exc:
             logger.warning("OpenRouter knowledge call failed: %s", exc)

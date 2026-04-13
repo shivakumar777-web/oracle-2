@@ -9,7 +9,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from hybrid_research import check_searxng_reachable, hybrid_dependencies_available, hybrid_ready
+from hybrid_research import (
+    check_searxng_reachable,
+    hybrid_dependencies_available,
+    hybrid_ready,
+    get_hybrid_metrics,
+    _select_retriever,
+)
 
 
 def create_health_router() -> APIRouter:
@@ -53,6 +59,13 @@ def create_health_router() -> APIRouter:
             except Exception:
                 searx_reachable = False
 
+        # Determine active retriever
+        active_retriever = _select_retriever(settings)
+        tavily_available = bool(settings.TAVILY_API_KEY and settings.TAVILY_ENABLED)
+
+        # Get runtime metrics
+        metrics = get_hybrid_metrics()
+
         return JSONResponse(
             status_code=200,
             content={
@@ -86,9 +99,22 @@ def create_health_router() -> APIRouter:
                         "hybrid_ready": hr_ok,
                         "hybrid_reason": hr_reason,
                         "gpt_researcher_import_ok": hybrid_dependencies_available(),
-                        "web_retriever": "searx",
-                        "searxng_reachable": searx_reachable,
-                        "searxng_url": settings.SEARXNG_URL,
+                        "retrievers": {
+                            "primary": "searxng",
+                            "fallback": "tavily" if tavily_available else None,
+                            "emergency": "duckduckgo",
+                            "active": active_retriever,
+                            "searxng": {
+                                "configured": bool(settings.SEARXNG_URL),
+                                "reachable": searx_reachable,
+                                "url": settings.SEARXNG_URL,
+                            },
+                            "tavily": {
+                                "configured": tavily_available,
+                                "enabled": settings.TAVILY_ENABLED,
+                            },
+                        },
+                        "metrics": metrics,
                     },
                 },
                 "error": None,

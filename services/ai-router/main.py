@@ -596,7 +596,7 @@ async def _call_groq_chat(
 
             def _sync_one() -> str:
                 client = build_openrouter_sync_client(api_key, cfg)
-                text, _m = chat_complete_sync(client, cfg, role, list(messages), role_cfg=rc)
+                text, _m, *_ = chat_complete_sync(client, cfg, role, list(messages), role_cfg=rc)
                 return text
 
             loop = asyncio.get_running_loop()
@@ -1810,7 +1810,7 @@ You are answering in M5 (Five Domain) mode. The user will see your response alon
                 for api_key in keys:
                     try:
                         client = build_openrouter_async_client(api_key, cfg)
-                        content, _m = await chat_complete_async(
+                        content, _m, *_ = await chat_complete_async(
                             client,
                             cfg,
                             "oracle_m5",

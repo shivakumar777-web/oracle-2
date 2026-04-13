@@ -248,7 +248,7 @@ async def test_synthesize_mocked_groq(monkeypatch):
             os.path.join(os.path.dirname(__file__), "..", "..", "config", "cloud_inference.yaml")
         ),
     )
-    with patch("manthana_inference.chat_complete_sync", return_value=("Synthesized answer.", "m")):
+    with patch("manthana_inference.chat_complete_sync", return_value=("Synthesized answer.", "m", {})):
         with patch("orchestrator._get_redis", new_callable=AsyncMock, return_value=None):
             result = await synthesize("query", "context")
             assert result == "Synthesized answer."

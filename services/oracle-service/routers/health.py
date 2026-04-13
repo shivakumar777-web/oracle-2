@@ -37,6 +37,9 @@ def create_health_router() -> APIRouter:
             or (os.environ.get("ORACLE_OPENROUTER_API_KEY") or "").strip()
         )
 
+        cloud_inference_ok = getattr(request.app.state, "cloud_inference_ok", True)
+        cloud_inference_error = getattr(request.app.state, "cloud_inference_error", "") or None
+
         # Check Redis if configured
         redis_status = "not_configured"
         if settings.ORACLE_REDIS_URL:
@@ -61,6 +64,8 @@ def create_health_router() -> APIRouter:
         overall_status = "healthy"
         if not openrouter_configured:
             overall_status = "degraded"
+        if not cloud_inference_ok:
+            overall_status = "degraded"
         if oracle_openrouter_circuit.state.value == "open" and oracle_ollama_circuit.state.value == "open":
             overall_status = "unhealthy"
 
@@ -75,6 +80,11 @@ def create_health_router() -> APIRouter:
                     "llm": {
                         "primary": "openrouter" if openrouter_configured else "not_configured",
                         "configured": openrouter_configured,
+                        "cloud_inference_config_ok": cloud_inference_ok,
+                        "cloud_inference_config_error": cloud_inference_error,
+                        "use_free_models_router": bool(
+                            getattr(settings, "ORACLE_USE_FREE_MODELS", False)
+                        ),
                         "circuits": {
                             "openrouter": oracle_openrouter_circuit.state.value,
                             "llm": oracle_openrouter_circuit.state.value,

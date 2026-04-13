@@ -22,7 +22,8 @@ This sets `MANTHANA_ROOT` to `oracle-2`, extends `PYTHONPATH` with `oracle-2` an
 | `CLOUD_INFERENCE_CONFIG_PATH` | Path to `cloud_inference.yaml` (OpenRouter roles/models). Default: `../config/cloud_inference.yaml` relative to `oracle-2`. |
 | `ORACLE_USE_RAG` | Default `false` in dev script; set `true` when MeiliSearch/Qdrant/SearXNG are up. |
 | `ORACLE_ENABLE_DOMAIN_INTELLIGENCE` | If `true` (default) and ai-router modules fail to import, `/v1/chat` returns a clear SSE error instead of silent stubs. |
-| `OPENROUTER_API_KEY` / `ORACLE_OPENROUTER_API_KEY` | Required for live LLM calls. |
+| `OPENROUTER_API_KEY` / `ORACLE_OPENROUTER_API_KEY` | Required for live LLM calls (including [OpenRouter free router](https://openrouter.ai/docs/guides/routing/routers/free-models-router) — Bearer key still required). |
+| `ORACLE_USE_FREE_MODELS` | `true` → chat/M5 use `openrouter/free` as primary (see `config/cloud_inference.yaml` roles `oracle_chat_free`, `oracle_m5_free`). Default `false`. |
 
 ## Verify modules loaded
 

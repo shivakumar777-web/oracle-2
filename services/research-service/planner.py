@@ -59,7 +59,7 @@ Generate focused sub-questions as JSON only.
         for api_key in keys:
             try:
                 client = build_openrouter_async_client(api_key, cfg)
-                raw, _model = await chat_complete_async(
+                raw, _model, *_ = await chat_complete_async(
                     client,
                     cfg,
                     "research_planner",

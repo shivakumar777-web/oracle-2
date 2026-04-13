@@ -156,7 +156,7 @@ class ResearchSettings(BaseSettings):
     )
 
     RESEARCH_USE_LEGACY_RAG: bool = Field(
-        default=True,
+        default=False,  # Hybrid default; legacy is opt-in only
         description="If True, use Meilisearch/Qdrant/Perplexica/SearXNG legacy pipeline. If False, use GPT Researcher + SearXNG hybrid path.",
     )
     RESEARCH_HYBRID_MAX_STEPS: int = Field(
@@ -186,7 +186,15 @@ class ResearchSettings(BaseSettings):
 
     SEARXNG_URL: str = Field(
         default="http://searxng:8080",
-        description="SearXNG URL for web search in research.",
+        description="SearXNG URL for web search in research (primary retriever).",
+    )
+    TAVILY_API_KEY: Optional[str] = Field(
+        default=None,
+        description="Tavily API key for fallback web search (higher quality, paid).",
+    )
+    TAVILY_ENABLED: bool = Field(
+        default=False,
+        description="Enable Tavily as fallback retriever when SearXNG fails.",
     )
     PERPLEXICA_URL: Optional[str] = Field(
         default=None,

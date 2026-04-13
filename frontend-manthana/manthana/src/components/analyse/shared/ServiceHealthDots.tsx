@@ -100,7 +100,8 @@ export default function ServiceHealthDots({ compact = false, dense = false }: Pr
     };
 
     checkHealth();
-    intervalRef.current = setInterval(checkHealth, 30000); // Poll every 30s
+    // Removed 30-second polling interval to prevent serverless billing loop
+    // intervalRef.current = setInterval(checkHealth, 30000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);

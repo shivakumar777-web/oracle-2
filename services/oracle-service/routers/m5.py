@@ -170,7 +170,7 @@ WEB SEARCH CAPABILITY: You have real-time web search enabled. For latest informa
     for api_key in keys:
         try:
             client = build_async_client(api_key, settings)
-            content, _model = await chat_complete_async(
+            content, _model, *_ = await chat_complete_async(
                 client,
                 cfg,
                 role_name,
@@ -211,6 +211,19 @@ def create_m5_router(limiter) -> APIRouter:
         message = payload.message
 
         json_log("manthana.oracle", "info", event="m5_query_start", query=message[:100], request_id=rid)
+
+        if not getattr(request.app.state, "cloud_inference_ok", True):
+            err = getattr(request.app.state, "cloud_inference_error", "") or "Cloud inference configuration invalid."
+
+            async def cfg_err():
+                yield f"data: {json.dumps({'type': 'error', 'message': err})}\n\n"
+                yield 'data: {"type": "done"}\n\n'
+
+            return StreamingResponse(
+                cfg_err(),
+                media_type="text/event-stream",
+                headers={"X-Request-ID": rid, "Cache-Control": "no-cache"},
+            )
 
         if not settings.ORACLE_ENABLE_M5:
             async def err_stream():

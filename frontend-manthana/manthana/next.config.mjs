@@ -83,8 +83,10 @@ const nextConfig = {
       { source: "/favicon.ico", destination: "/icons/icon.svg" },
       // 1. Auth stays local — handled by Next.js API route
       { source: "/api/auth/:path*", destination: "/api/auth/:path*" },
-      // 2. Oracle: handled by app/api/oracle-backend/[[...path]]/route.ts (do not rewrite here — breaks SSE).
-      // 3. Relative API base is a proxy path — avoid broken self-rewrite
+      // 2. Oracle: handled by app/api/oracle-backend/[[...path]]/route.ts
+      //    Must stay local — do NOT let the catch-all /api/:path* rewrite hijack it.
+      { source: "/api/oracle-backend/:path*", destination: "/api/oracle-backend/:path*" },
+      // 3. Everything else under /api/* → external backend (skip if relative path)
       ...(backendUrl.startsWith("/")
         ? []
         : [{ source: "/api/:path*", destination: `${backendUrl}/:path*` }]),

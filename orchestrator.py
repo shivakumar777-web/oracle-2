@@ -513,7 +513,7 @@ async def synthesize(query: str, context: str, redis_client: Optional[Any] = Non
         backoffs = [2, 4, 8]
         for attempt, delay in enumerate(backoffs, start=1):
             try:
-                text, _model = chat_complete_sync(
+                text, _model, *_ = chat_complete_sync(
                     client,
                     cfg,
                     "orchestrator_synthesis",

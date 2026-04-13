@@ -1,11 +1,11 @@
 """
-chat.py — Oracle Chat Router
+chat.py â€” Oracle Chat Router
 ==============================
 Streaming chat endpoint with full RAG pipeline: query classification,
 source routing, MeiliSearch + Qdrant + SearXNG + PubMed + ClinicalTrials,
 re-ranking, domain intelligence, and adaptive prompts.
 
-Implements ORACLE_SERVICE_FIX_PLAN.md Phase A–D.
+Implements ORACLE_SERVICE_FIX_PLAN.md Phase Aâ€“D.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ def json_log(logger_name: str, level: str, **fields) -> None:
 
 logger = logging.getLogger("manthana.oracle.chat")
 
-# ── Lib imports (ai-router modules copied to /app/lib at build time) ───
+# â”€â”€ Lib imports (ai-router modules copied to /app/lib at build time) â”€â”€â”€
 _LIB_AVAILABLE = False
 try:
     from query_intelligence import classify_query, expand_query, QueryType
@@ -178,11 +178,11 @@ _EMBED_MAX_CHARS = 8000
 _EMBEDDING_DIM = 768
 
 
-# ── Request/Response Models ───────────────────────────────────────────
+# â”€â”€ Request/Response Models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class ChatMessage(BaseModel):
-    role: str
-    content: str
+    role: str = "user"
+    content: str = ""
 
 
 class ChatRequest(BaseModel):
@@ -198,7 +198,7 @@ class ChatRequest(BaseModel):
     experiment_id: Optional[str] = None
 
 
-# ── LLM Client Helpers (OpenRouter via cloud_inference.yaml) ──────────
+# â”€â”€ LLM Client Helpers (OpenRouter via cloud_inference.yaml) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 from manthana_inference import resolve_role, stream_chat_async
 from services.shared.openrouter_helpers import (
@@ -324,7 +324,7 @@ async def _openrouter_stream_with_circuit(
             return
 
 
-# ── RAG Helpers ────────────────────────────────────────────────────────
+# â”€â”€ RAG Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def _generate_embedding(
     text: str,
@@ -414,7 +414,7 @@ async def _with_timeout(coro, default: Any, timeout: float = _CHAT_SOURCE_TIMEOU
         return default
 
 
-# ── System Prompt Builder (Phase B) ───────────────────────────────────
+# â”€â”€ System Prompt Builder (Phase B) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _build_chat_system_prompt(
     intensity: str,
@@ -430,7 +430,7 @@ def _build_chat_system_prompt(
 ) -> List[Dict[str, str]]:
     base_prompt = (
         "You are Manthana, a medical AI assistant that churns five oceans of medicine "
-        "(Allopathy, Ayurveda, Homeopathy, Siddha, and Unani) to extract only Amrita — "
+        "(Allopathy, Ayurveda, Homeopathy, Siddha, and Unani) to extract only Amrita â€” "
         "pure, verified medical knowledge. Always recommend consulting a doctor for medical decisions.\n\n"
     )
     if primary_domain == MedicalDomain.ALLOPATHY:
@@ -548,9 +548,9 @@ You MUST format your response using proper Markdown for readability:
 - **Sources** - Full citations at end
 
 ### Formatting Examples:
-❌ BAD: "Diabetes is a condition where blood sugar is high [S1]. Symptoms include thirst and frequent urination [S2]. Treatment involves medication [S3]."
+âŒ BAD: "Diabetes is a condition where blood sugar is high [S1]. Symptoms include thirst and frequent urination [S2]. Treatment involves medication [S3]."
 
-✅ GOOD:
+âœ… GOOD:
 ## Overview
 Diabetes is a chronic metabolic disorder characterized by elevated blood glucose levels [S1].
 
@@ -571,7 +571,7 @@ Treatment typically includes:
 
     if sources:
         sources_block = "\n".join(
-            f"[S{i+1}] {d.get('title', '')} — {d.get('url', '') or 'indexed'}"
+            f"[S{i+1}] {d.get('title', '')} â€” {d.get('url', '') or 'indexed'}"
             for i, d in enumerate(sources[:15])
         )
         citation_instruction = (
@@ -588,7 +588,7 @@ Treatment typically includes:
     return system_prompts
 
 
-# ── Main LLM stream (OpenRouter + optional second key) ──────────────────
+# â”€â”€ Main LLM stream (OpenRouter + optional second key) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def _oracle_llm_stream(
     settings: OracleSettings,
@@ -650,7 +650,7 @@ async def _oracle_llm_stream(
         yield _sse_event({"type": "done"})
 
 
-# ── Router Factory ───────────────────────────────────────────────────
+# â”€â”€ Router Factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def create_chat_router(limiter) -> APIRouter:
     router = APIRouter(tags=["chat"])
@@ -677,7 +677,7 @@ def create_chat_router(limiter) -> APIRouter:
             async def intelligence_unavailable_stream():
                 yield _sse_error_event(
                     "domain_intelligence_unavailable",
-                    "Domain intelligence is unavailable — ai-router modules failed to import. "
+                    "Domain intelligence is unavailable â€” ai-router modules failed to import. "
                     "Check deployment (PYTHONPATH, MANTHANA_ROOT) or set ORACLE_ENABLE_DOMAIN_INTELLIGENCE=false for stub-only mode.",
                 )
                 yield _sse_event({"type": "done"})
@@ -687,312 +687,351 @@ def create_chat_router(limiter) -> APIRouter:
                 media_type="text/event-stream",
             )
 
-        # Phase 2: Query intelligence + source routing
-        classification = classify_query(message)
-        strategies = route_sources(
-            classification.query_type, evidence, enable_web, enable_trials,
-        )
+        if not getattr(request.app.state, "cloud_inference_ok", True):
+            msg = getattr(request.app.state, "cloud_inference_error", "") or (
+                "Cloud inference configuration is missing or invalid. "
+                "Set CLOUD_INFERENCE_CONFIG_PATH to a valid cloud_inference.yaml on the Oracle service."
+            )
 
-        # Domain intelligence
+            async def _cfg_err():
+                yield _sse_error_event("cloud_inference_config", msg)
+                yield _sse_event({"type": "done"})
+
+            return StreamingResponse(
+                _cfg_err(),
+                media_type="text/event-stream",
+                headers={"X-Request-ID": rid, "Cache-Control": "no-cache"},
+            )
+
         try:
-            primary_domain = MedicalDomain(domain.lower())
-        except (ValueError, AttributeError):
-            primary_domain = MedicalDomain.ALLOPATHY
-
-        detected_domain = detect_domain_in_query(message) if _LIB_AVAILABLE else None
-        is_integrative = is_integrative_query(message) if _LIB_AVAILABLE else False
-        effective_domain = primary_domain
-        if detected_domain and detected_domain != primary_domain and is_integrative:
-            json_log("manthana.oracle", "info", event="integrative_query_detected", primary_domain=primary_domain.value, detected_domain=detected_domain.value, request_id=rid)
-        elif (
-            detected_domain
-            and detected_domain != primary_domain
-            and primary_domain == MedicalDomain.ALLOPATHY
-        ):
-            # Only auto-switch domain when the UI is still on default allopathy but the query names another system.
-            # Never override an explicit Ayurveda/Homeopathy/Siddha/Unani pill selection.
-            effective_domain = detected_domain
-            json_log(
-                "manthana.oracle",
-                "info",
-                event="auto_domain_from_query",
-                primary_domain=primary_domain.value,
-                effective_domain=effective_domain.value,
-                request_id=rid,
+            # Phase 2: Query intelligence + source routing
+            classification = classify_query(message)
+            strategies = route_sources(
+                classification.query_type, evidence, enable_web, enable_trials,
             )
-
-        # Domain-specific query expansion
-        # Special enhanced handling for Ayurveda to get classical shlokas
-        if effective_domain == MedicalDomain.AYURVEDA and _LIB_AVAILABLE:
-            # Get enhanced Ayurveda queries with shloka-specific variations
-            ayurveda_queries = get_ayurveda_enhanced_queries(message)
-            domain_expanded_queries = ayurveda_queries["general"]
-            # Use shloka-focused query for RAG to get classical text content
-            rag_query = ayurveda_queries["shloka"][-1] if ayurveda_queries["shloka"] else message
-            # Also use shloka query for SearXNG to find classical text sources
-            searxng_query = ayurveda_queries["shloka"][0] if ayurveda_queries["shloka"] else message
-            json_log(
-                "manthana.oracle",
-                "info",
-                event="ayurveda_enhanced_query",
-                shloka_query=rag_query,
-                searxng_query=searxng_query,
-                request_id=rid,
-            )
-        else:
-            domain_expanded_queries = expand_query_for_domain(message, effective_domain)
-            rag_query = domain_expanded_queries[-1] if len(domain_expanded_queries) > 1 else message
-            searxng_query = rag_query
-        
-        searxng_cat = CATEGORY_MAP.get(effective_domain.value, "medical")
-
-        use_rag = settings.ORACLE_USE_RAG
-        strategies_for_progress = strategies if use_rag else []
-
-        # Build parallel tasks (Meili/Qdrant/embed/SearXNG/PubMed/trials)
-        tasks: Dict[str, Any] = {}
-        client = getattr(request.app.state, "client", None)
-        if client is None:
-            client = httpx.AsyncClient(timeout=20.0)
-
-        redis_cli = getattr(request.app.state, "redis", None)
-
-        if use_rag and (SourceStrategy.MEILISEARCH in strategies or SourceStrategy.QDRANT in strategies):
-            tasks["rag"] = _with_timeout(
-                _rag_search(rag_query, settings, client, rid),
-                {"meilisearch": [], "qdrant": []},
-                timeout=6.0,
-                source="rag",
-            )
-        if use_rag and SourceStrategy.SEARXNG in strategies:
-            # Use shloka-focused query for Ayurveda to get classical text sources
-            tasks["searxng"] = _with_timeout(
-                fetch_searxng(searxng_query, searxng_cat, "json", 1, settings.SEARXNG_URL, redis_cli),
-                {"results": []},
-                source="searxng",
-            )
-        # PubMed: allopathy-only (peer-reviewed Western medicine)
-        if (
-            use_rag
-            and SourceStrategy.PUBMED in strategies
-            and settings.ORACLE_ENABLE_PUBMED
-            and effective_domain == MedicalDomain.ALLOPATHY
-        ):
-            pubmed_exp = expand_query(message, "allopathy")
-            pubmed_query = pubmed_exp[1] if len(pubmed_exp) > 1 else message
-            tasks["pubmed"] = _with_timeout(search_pubmed(pubmed_query, max_results=5), [], source="pubmed")
-        # ClinicalTrials: allopathy + homeopathy (some homeopathy trials on CT.gov)
-        if (
-            use_rag
-            and SourceStrategy.CLINICAL_TRIALS in strategies
-            and settings.ORACLE_ENABLE_TRIALS
-            and effective_domain in (MedicalDomain.ALLOPATHY, MedicalDomain.HOMEOPATHY)
-        ):
-            tasks["trials"] = _with_timeout(
-                fetch_clinical_trials_gov(
-                    message, filters={"status": "active"}, page_size=5, redis_client=redis_cli,
-                ),
-                {"trials": []},
-                source="trials",
-            )
-
-        if use_rag:
-            gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
-            task_keys = list(tasks.keys())
-            for i, r in enumerate(gathered):
-                if isinstance(r, BaseException):
-                    json_log("manthana.oracle", "warning", event="chat_source_failed", source=task_keys[i], error=str(r), request_id=rid)
-
-            rag_result = {"meilisearch": [], "qdrant": []}
-            web_raw = {"results": []}
-            pubmed_articles: List[Dict[str, Any]] = []
-            trials_result = {"trials": []}
-            for k, r in zip(task_keys, gathered):
-                if isinstance(r, BaseException):
-                    continue
-                if k == "rag":
-                    rag_result = r if isinstance(r, dict) else {"meilisearch": [], "qdrant": []}
-                elif k == "searxng":
-                    web_raw = r if isinstance(r, dict) else {"results": []}
-                elif k == "pubmed":
-                    pubmed_articles = r if isinstance(r, list) else []
-                elif k == "trials":
-                    trials_result = r if isinstance(r, dict) else {"trials": []}
-        else:
-            json_log("manthana.oracle", "info", event="chat_rag_disabled", request_id=rid)
-            rag_result = {"meilisearch": [], "qdrant": []}
-            web_raw = {"results": []}
-            pubmed_articles = []
-            trials_result = {"trials": []}
-
-        # Normalize all docs to {title, content, _source, url, trustScore}
-        all_docs: List[Dict[str, Any]] = []
-        for doc in rag_result.get("meilisearch", []):
-            url = doc.get("url", "")
-            base_score = 85
-            domain_boost = get_domain_trust_boost(effective_domain, url)
-            all_docs.append({
-                "title": doc.get("title", ""),
-                "content": (doc.get("content", "") or doc.get("snippet", ""))[:400],
-                "_source": "Meili",
-                "url": url,
-                "trustScore": base_score + domain_boost,
-            })
-        for doc in rag_result.get("qdrant", []):
-            url = doc.get("url", "")
-            base_score = 85
-            domain_boost = get_domain_trust_boost(effective_domain, url)
-            all_docs.append({
-                "title": doc.get("title", ""),
-                "content": (doc.get("content", "") or doc.get("snippet", ""))[:400],
-                "_source": "Qdrant",
-                "url": url,
-                "trustScore": base_score + domain_boost,
-            })
-        raw_web = web_raw.get("results", [])
-        if raw_web:
-            enriched_web = [enrich_result(r, domain) for r in raw_web]
-            enriched_web = deduplicate_results(enriched_web)
-            for doc in enriched_web:
+    
+            # Domain intelligence
+            try:
+                primary_domain = MedicalDomain(domain.lower())
+            except (ValueError, AttributeError):
+                primary_domain = MedicalDomain.ALLOPATHY
+    
+            detected_domain = detect_domain_in_query(message) if _LIB_AVAILABLE else None
+            is_integrative = is_integrative_query(message) if _LIB_AVAILABLE else False
+            effective_domain = primary_domain
+            if detected_domain and detected_domain != primary_domain and is_integrative:
+                json_log("manthana.oracle", "info", event="integrative_query_detected", primary_domain=primary_domain.value, detected_domain=detected_domain.value, request_id=rid)
+            elif (
+                detected_domain
+                and detected_domain != primary_domain
+                and primary_domain == MedicalDomain.ALLOPATHY
+            ):
+                # Only auto-switch domain when the UI is still on default allopathy but the query names another system.
+                # Never override an explicit Ayurveda/Homeopathy/Siddha/Unani pill selection.
+                effective_domain = detected_domain
+                json_log(
+                    "manthana.oracle",
+                    "info",
+                    event="auto_domain_from_query",
+                    primary_domain=primary_domain.value,
+                    effective_domain=effective_domain.value,
+                    request_id=rid,
+                )
+    
+            # Domain-specific query expansion
+            # Special enhanced handling for Ayurveda to get classical shlokas
+            if effective_domain == MedicalDomain.AYURVEDA and _LIB_AVAILABLE:
+                # Get enhanced Ayurveda queries with shloka-specific variations
+                ayurveda_queries = get_ayurveda_enhanced_queries(message)
+                domain_expanded_queries = ayurveda_queries["general"]
+                # Use shloka-focused query for RAG to get classical text content
+                rag_query = ayurveda_queries["shloka"][-1] if ayurveda_queries["shloka"] else message
+                # Also use shloka query for SearXNG to find classical text sources
+                searxng_query = ayurveda_queries["shloka"][0] if ayurveda_queries["shloka"] else message
+                json_log(
+                    "manthana.oracle",
+                    "info",
+                    event="ayurveda_enhanced_query",
+                    shloka_query=rag_query,
+                    searxng_query=searxng_query,
+                    request_id=rid,
+                )
+            else:
+                domain_expanded_queries = expand_query_for_domain(message, effective_domain)
+                rag_query = domain_expanded_queries[-1] if len(domain_expanded_queries) > 1 else message
+                searxng_query = rag_query
+            
+            searxng_cat = CATEGORY_MAP.get(effective_domain.value, "medical")
+    
+            use_rag = settings.ORACLE_USE_RAG
+            strategies_for_progress = strategies if use_rag else []
+    
+            # Build parallel tasks (Meili/Qdrant/embed/SearXNG/PubMed/trials)
+            tasks: Dict[str, Any] = {}
+            client = getattr(request.app.state, "client", None)
+            if client is None:
+                client = httpx.AsyncClient(timeout=20.0)
+    
+            redis_cli = getattr(request.app.state, "redis", None)
+    
+            if use_rag and (SourceStrategy.MEILISEARCH in strategies or SourceStrategy.QDRANT in strategies):
+                tasks["rag"] = _with_timeout(
+                    _rag_search(rag_query, settings, client, rid),
+                    {"meilisearch": [], "qdrant": []},
+                    timeout=6.0,
+                    source="rag",
+                )
+            if use_rag and SourceStrategy.SEARXNG in strategies:
+                # Use shloka-focused query for Ayurveda to get classical text sources
+                tasks["searxng"] = _with_timeout(
+                    fetch_searxng(searxng_query, searxng_cat, "json", 1, settings.SEARXNG_URL, redis_cli),
+                    {"results": []},
+                    source="searxng",
+                )
+            # PubMed: allopathy-only (peer-reviewed Western medicine)
+            if (
+                use_rag
+                and SourceStrategy.PUBMED in strategies
+                and settings.ORACLE_ENABLE_PUBMED
+                and effective_domain == MedicalDomain.ALLOPATHY
+            ):
+                pubmed_exp = expand_query(message, "allopathy")
+                pubmed_query = pubmed_exp[1] if len(pubmed_exp) > 1 else message
+                tasks["pubmed"] = _with_timeout(search_pubmed(pubmed_query, max_results=5), [], source="pubmed")
+            # ClinicalTrials: allopathy + homeopathy (some homeopathy trials on CT.gov)
+            if (
+                use_rag
+                and SourceStrategy.CLINICAL_TRIALS in strategies
+                and settings.ORACLE_ENABLE_TRIALS
+                and effective_domain in (MedicalDomain.ALLOPATHY, MedicalDomain.HOMEOPATHY)
+            ):
+                tasks["trials"] = _with_timeout(
+                    fetch_clinical_trials_gov(
+                        message, filters={"status": "active"}, page_size=5, redis_client=redis_cli,
+                    ),
+                    {"trials": []},
+                    source="trials",
+                )
+    
+            if use_rag:
+                gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
+                task_keys = list(tasks.keys())
+                for i, r in enumerate(gathered):
+                    if isinstance(r, BaseException):
+                        json_log("manthana.oracle", "warning", event="chat_source_failed", source=task_keys[i], error=str(r), request_id=rid)
+    
+                rag_result = {"meilisearch": [], "qdrant": []}
+                web_raw = {"results": []}
+                pubmed_articles: List[Dict[str, Any]] = []
+                trials_result = {"trials": []}
+                for k, r in zip(task_keys, gathered):
+                    if isinstance(r, BaseException):
+                        continue
+                    if k == "rag":
+                        rag_result = r if isinstance(r, dict) else {"meilisearch": [], "qdrant": []}
+                    elif k == "searxng":
+                        web_raw = r if isinstance(r, dict) else {"results": []}
+                    elif k == "pubmed":
+                        pubmed_articles = r if isinstance(r, list) else []
+                    elif k == "trials":
+                        trials_result = r if isinstance(r, dict) else {"trials": []}
+            else:
+                json_log("manthana.oracle", "info", event="chat_rag_disabled", request_id=rid)
+                rag_result = {"meilisearch": [], "qdrant": []}
+                web_raw = {"results": []}
+                pubmed_articles = []
+                trials_result = {"trials": []}
+    
+            # Normalize all docs to {title, content, _source, url, trustScore}
+            all_docs: List[Dict[str, Any]] = []
+            for doc in rag_result.get("meilisearch", []):
                 url = doc.get("url", "")
-                base_score = doc.get("trustScore", 45)
+                base_score = 85
                 domain_boost = get_domain_trust_boost(effective_domain, url)
-                doc["trustScore"] = base_score + domain_boost
-            enriched_web = sort_by_trust(enriched_web)
-            for doc in enriched_web[:8]:
                 all_docs.append({
                     "title": doc.get("title", ""),
-                    "content": (doc.get("snippet", "") or doc.get("content", ""))[:400],
-                    "_source": "Web",
-                    "url": doc.get("url", ""),
-                    "trustScore": doc.get("trustScore", 45),
+                    "content": (doc.get("content", "") or doc.get("snippet", ""))[:400],
+                    "_source": "Meili",
+                    "url": url,
+                    "trustScore": base_score + domain_boost,
                 })
-        for art in pubmed_articles[:5]:
-            content = f"Authors: {art.get('authors', '')}. Published: {art.get('pubdate', '')}."
-            all_docs.append({
-                "title": art.get("title", ""),
-                "content": content,
-                "_source": "PubMed",
-                "url": art.get("url", ""),
-                "trustScore": 95,
-            })
-        for t in trials_result.get("trials", [])[:5]:
-            content = f"Phase {t.get('phase', '')}, Status: {t.get('status', '')}. Condition: {t.get('condition', '')}. {t.get('intervention', '')}"
-            all_docs.append({
-                "title": t.get("title", ""),
-                "content": content[:400],
-                "_source": "ClinicalTrials",
-                "url": t.get("url", ""),
-                "trustScore": 93,
-            })
-
-        # Domain-aware re-ranking
-        all_docs = should_prioritize_domain_sources(effective_domain, all_docs)
-        # For traditional domains, exclude allopathy-only sources (PubMed, ClinicalTrials)
-        if effective_domain in (MedicalDomain.AYURVEDA, MedicalDomain.SIDDHA, MedicalDomain.UNANI):
-            all_docs = [d for d in all_docs if not _is_allopathy_only_url(d.get("url", ""))]
-        all_docs = rerank_by_relevance(all_docs, message, top_k=15)
-
-        # Build context
-        ctx_parts = [f"[{d.get('_source', '')}] {d.get('title', '')}: {d.get('content', '')}" for d in all_docs]
-        context = "\n\n".join(ctx_parts)
-
-        is_emergency = classification.query_type == QueryType.EMERGENCY
-        messages: List[Dict[str, str]] = _build_chat_system_prompt(
-            intensity,
-            persona,
-            evidence,
-            domain,
-            context,
-            sources=all_docs,
-            is_emergency=is_emergency,
-            primary_domain=primary_domain,
-            search_priority_query=message,
-        )
-        if enable_web:
-            if primary_domain == MedicalDomain.ALLOPATHY:
-                messages.append({
-                    "role": "system",
-                    "content": (
-                        "WEB SEARCH ACTIVE: You have real-time web search enabled. "
-                        "For any query requiring current, latest, or real-time medical information, "
-                        "search the web and cite authoritative sources (WHO, NIH, PubMed, medical journals, "
-                        "government health sites) with full URLs. Always provide source links for facts, "
-                        "statistics, and recent medical developments. "
-                        "When you use a web page, cite it inline as a markdown link "
-                        "`[short site name](https://full-url)` so the app can list consulted pages at the end."
-                    ),
+            for doc in rag_result.get("qdrant", []):
+                url = doc.get("url", "")
+                base_score = 85
+                domain_boost = get_domain_trust_boost(effective_domain, url)
+                all_docs.append({
+                    "title": doc.get("title", ""),
+                    "content": (doc.get("content", "") or doc.get("snippet", ""))[:400],
+                    "_source": "Qdrant",
+                    "url": url,
+                    "trustScore": base_score + domain_boost,
                 })
+            raw_web = web_raw.get("results", [])
+            if raw_web:
+                enriched_web = [enrich_result(r, domain) for r in raw_web]
+                enriched_web = deduplicate_results(enriched_web)
+                for doc in enriched_web:
+                    url = doc.get("url", "")
+                    base_score = doc.get("trustScore", 45)
+                    domain_boost = get_domain_trust_boost(effective_domain, url)
+                    doc["trustScore"] = base_score + domain_boost
+                enriched_web = sort_by_trust(enriched_web)
+                for doc in enriched_web[:8]:
+                    all_docs.append({
+                        "title": doc.get("title", ""),
+                        "content": (doc.get("snippet", "") or doc.get("content", ""))[:400],
+                        "_source": "Web",
+                        "url": doc.get("url", ""),
+                        "trustScore": doc.get("trustScore", 45),
+                    })
+            for art in pubmed_articles[:5]:
+                content = f"Authors: {art.get('authors', '')}. Published: {art.get('pubdate', '')}."
+                all_docs.append({
+                    "title": art.get("title", ""),
+                    "content": content,
+                    "_source": "PubMed",
+                    "url": art.get("url", ""),
+                    "trustScore": 95,
+                })
+            for t in trials_result.get("trials", [])[:5]:
+                content = f"Phase {t.get('phase', '')}, Status: {t.get('status', '')}. Condition: {t.get('condition', '')}. {t.get('intervention', '')}"
+                all_docs.append({
+                    "title": t.get("title", ""),
+                    "content": content[:400],
+                    "_source": "ClinicalTrials",
+                    "url": t.get("url", ""),
+                    "trustScore": 93,
+                })
+    
+            # Domain-aware re-ranking
+            all_docs = should_prioritize_domain_sources(effective_domain, all_docs)
+            # For traditional domains, exclude allopathy-only sources (PubMed, ClinicalTrials)
+            if effective_domain in (MedicalDomain.AYURVEDA, MedicalDomain.SIDDHA, MedicalDomain.UNANI):
+                all_docs = [d for d in all_docs if not _is_allopathy_only_url(d.get("url", ""))]
+            all_docs = rerank_by_relevance(all_docs, message, top_k=15)
+    
+            # Build context
+            ctx_parts = [f"[{d.get('_source', '')}] {d.get('title', '')}: {d.get('content', '')}" for d in all_docs]
+            context = "\n\n".join(ctx_parts)
+    
+            is_emergency = classification.query_type == QueryType.EMERGENCY
+            messages: List[Dict[str, str]] = _build_chat_system_prompt(
+                intensity,
+                persona,
+                evidence,
+                domain,
+                context,
+                sources=all_docs,
+                is_emergency=is_emergency,
+                primary_domain=primary_domain,
+                search_priority_query=message,
+            )
+            if enable_web:
+                if primary_domain == MedicalDomain.ALLOPATHY:
+                    messages.append({
+                        "role": "system",
+                        "content": (
+                            "WEB SEARCH ACTIVE: You have real-time web search enabled. "
+                            "For any query requiring current, latest, or real-time medical information, "
+                            "search the web and cite authoritative sources (WHO, NIH, PubMed, medical journals, "
+                            "government health sites) with full URLs. Always provide source links for facts, "
+                            "statistics, and recent medical developments. "
+                            "When you use a web page, cite it inline as a markdown link "
+                            "`[short site name](https://full-url)` so the app can list consulted pages at the end."
+                        ),
+                    })
+                else:
+                    messages.append({
+                        "role": "system",
+                        "content": (
+                            "WEB SEARCH ACTIVE: Prefer sources aligned with the user's selected traditional system "
+                            "(AYUSH, classical text repositories, WHO traditional medicine, peer-reviewed "
+                            "ethnopharmacology). Do not treat Western cosmetic/pharma marketing pages as the primary "
+                            "authority when the UI domain is not allopathy. "
+                            "Cite each web page you use as a markdown link `[short site name](https://full-url)` "
+                            "so consulted URLs can be listed for the user."
+                        ),
+                    })
+            for h in payload.history[-10:]:
+                messages.append({"role": h.role or "user", "content": h.content or ""})
+            messages.append({"role": "user", "content": message})
+    
+            sources_for_stream = [
+                {
+                    "id": f"S{i+1}",
+                    "title": d.get("title", ""),
+                    "url": d.get("url", ""),
+                    "trustScore": d.get("trustScore", 0),
+                    "source": d.get("_source", ""),
+                }
+                for i, d in enumerate(all_docs[:15])
+            ]
+    
+            web_search_parameters: Optional[Dict[str, Any]] = (
+                build_openrouter_web_search_parameters(effective_domain.value, query=message)
+                if enable_web
+                else None
+            )
+            if web_search_parameters:
+                json_log(
+                    "manthana.oracle",
+                    "info",
+                    event="openrouter_web_search_tool",
+                    domain=effective_domain.value,
+                    engine=web_search_parameters.get("engine"),
+                    allowed_domains_n=len(web_search_parameters.get("allowed_domains", []) or []),
+                    request_id=rid,
+                )
+    
+            if settings.ORACLE_USE_FREE_MODELS:
+                chat_role = "oracle_chat_free"
+            elif is_emergency:
+                chat_role = "oracle_chat"
+            elif (intensity or "auto") == "quick":
+                chat_role = "oracle_chat_shallow"
             else:
-                messages.append({
-                    "role": "system",
-                    "content": (
-                        "WEB SEARCH ACTIVE: Prefer sources aligned with the user's selected traditional system "
-                        "(AYUSH, classical text repositories, WHO traditional medicine, peer-reviewed "
-                        "ethnopharmacology). Do not treat Western cosmetic/pharma marketing pages as the primary "
-                        "authority when the UI domain is not allopathy. "
-                        "Cite each web page you use as a markdown link `[short site name](https://full-url)` "
-                        "so consulted URLs can be listed for the user."
-                    ),
-                })
-        for h in payload.history[-10:]:
-            messages.append({"role": h.role or "user", "content": h.content or ""})
-        messages.append({"role": "user", "content": message})
+                chat_role = "oracle_chat"
+    
+            async def stream_generator():
+                async for chunk in _oracle_llm_stream(
+                    settings,
+                    messages,
+                    rid,
+                    sources_for_stream,
+                    strategies_for_progress,
+                    is_emergency=is_emergency,
+                    web_search_parameters=web_search_parameters,
+                    enable_web=enable_web,
+                    chat_role=chat_role,
+                ):
+                    yield chunk
+    
+            return StreamingResponse(
+                stream_generator(),
+                media_type="text/event-stream",
+                headers={"X-Request-ID": rid, "Cache-Control": "no-cache"},
+            )
 
-        sources_for_stream = [
-            {
-                "id": f"S{i+1}",
-                "title": d.get("title", ""),
-                "url": d.get("url", ""),
-                "trustScore": d.get("trustScore", 0),
-                "source": d.get("_source", ""),
-            }
-            for i, d in enumerate(all_docs[:15])
-        ]
-
-        web_search_parameters: Optional[Dict[str, Any]] = (
-            build_openrouter_web_search_parameters(effective_domain.value, query=message)
-            if enable_web
-            else None
-        )
-        if web_search_parameters:
+        except Exception as exc:
             json_log(
                 "manthana.oracle",
-                "info",
-                event="openrouter_web_search_tool",
-                domain=effective_domain.value,
-                engine=web_search_parameters.get("engine"),
-                allowed_domains_n=len(web_search_parameters.get("allowed_domains", []) or []),
+                "error",
+                event="chat_handler_unhandled",
+                error=str(exc),
                 request_id=rid,
             )
 
-        if settings.ORACLE_USE_FREE_MODELS:
-            chat_role = "oracle_chat_free"
-        elif is_emergency:
-            chat_role = "oracle_chat"
-        elif (intensity or "auto") == "quick":
-            chat_role = "oracle_chat_shallow"
-        else:
-            chat_role = "oracle_chat"
+            async def err_stream():
+                yield _sse_error_event(
+                    "chat_internal_error",
+                    "The chat service hit an unexpected error. Please try again.",
+                )
+                yield _sse_event({"type": "done"})
 
-        async def stream_generator():
-            async for chunk in _oracle_llm_stream(
-                settings,
-                messages,
-                rid,
-                sources_for_stream,
-                strategies_for_progress,
-                is_emergency=is_emergency,
-                web_search_parameters=web_search_parameters,
-                enable_web=enable_web,
-                chat_role=chat_role,
-            ):
-                yield chunk
-
-        return StreamingResponse(
-            stream_generator(),
-            media_type="text/event-stream",
-            headers={"X-Request-ID": rid, "Cache-Control": "no-cache"},
-        )
+            return StreamingResponse(
+                err_stream(),
+                media_type="text/event-stream",
+                headers={"X-Request-ID": rid, "Cache-Control": "no-cache"},
+            )
 
     return router

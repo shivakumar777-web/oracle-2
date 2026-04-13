@@ -826,7 +826,7 @@ export default function OraclePage() {
       {/* Loading spinner for search mode */}
       {mode === "search" && isThinking && !searchResults && (
         <div className="flex-1 flex items-center justify-center py-16">
-          <ChurningState mode={mode} />
+          <ChurningState mode={mode} domain={activeDomain} />
         </div>
       )}
 
@@ -851,7 +851,7 @@ export default function OraclePage() {
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} />
             ))}
-            {isThinking && !messages.some((m) => m.streaming) && <ChurningState mode={mode} />}
+            {isThinking && !messages.some((m) => m.streaming) && <ChurningState mode={mode} domain={activeDomain} />}
             <div ref={scrollRef} />
           </div>
         </div>

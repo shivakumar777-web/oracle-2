@@ -54,7 +54,7 @@ async def _call_openrouter(
     for api_key in keys:
         try:
             client = build_openrouter_async_client(api_key, cfg)
-            text, _model = await chat_complete_async(
+            text, _model, *_ = await chat_complete_async(
                 client,
                 cfg,
                 "research_synthesis",

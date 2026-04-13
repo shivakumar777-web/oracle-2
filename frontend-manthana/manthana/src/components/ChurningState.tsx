@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Logo from "./Logo";
+import OracleThinking from "./OracleThinking";
 
 const STATUS_MESSAGES = [
   "Consulting the ocean of knowledge…",
@@ -14,21 +15,28 @@ const STATUS_MESSAGES = [
 
 interface ChurningStateProps {
   mode?: string;
+  domain?: string;
 }
 
-export default function ChurningState({ mode }: ChurningStateProps) {
+export default function ChurningState({ mode, domain }: ChurningStateProps) {
   const [msgIdx, setMsgIdx] = useState(0);
+  const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => {
       setMsgIdx((i) => (i + 1) % STATUS_MESSAGES.length);
     }, 2200);
-    return () => clearInterval(t);
+    // Slight delay before showing thinking panel so it feels intentional
+    const onTimer = setTimeout(() => setIsActive(true), 300);
+    return () => {
+      clearInterval(t);
+      clearTimeout(onTimer);
+    };
   }, []);
 
   return (
     <div
-      className="flex flex-col items-center gap-4 py-8 px-4"
+      className="flex flex-col items-center gap-3 py-8 px-4"
       style={{ contain: "layout" }}
     >
       {/* Spinning logo — GPU layer to avoid repaint flicker */}
@@ -63,6 +71,9 @@ export default function ChurningState({ mode }: ChurningStateProps) {
           />
         ))}
       </div>
+
+      {/* ── Oracle Thinking panel ──────────────────────────────────── */}
+      <OracleThinking mode={mode} domain={domain} isActive={isActive} />
     </div>
   );
 }
