@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manthana Report Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;600;700&family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════
+   MANTHANA REPORT ENGINE — UNIVERSAL DESIGN SYSTEM
+   ═══════════════════════════════════════════════════ */
+:root {
+  --bg-void: #020509;
+  --bg-deep: #060d14;
+  --bg-card: #0a1520;
+  --bg-panel: #0d1c2a;
+  --bg-elevated: #112233;
+  --border-subtle: rgba(0,180,255,0.08);
+  --border-mid: rgba(0,180,255,0.18);
+  --border-accent: rgba(0,220,255,0.35);
+  --cyan: #00d4ff;
+  --cyan-dim: #0099bb;
+  --teal: #00ffcc;
+  --teal-dim: #00bb99;
+  --amber: #ffb840;
+  --red: #ff4d6a;
+  --red-dim: #cc2244;
+  --green: #00e87a;
+  --green-dim: #00aa55;
+  --text-primary: #e8f4ff;
+  --text-secondary: #7ab3cc;
+  --text-muted: #3d6678;
+  --text-label: #4a8fa8;
+  --severity-critical: #ff2244;
+  --severity-significant: #ff8c00;
+  --severity-moderate: #ffd700;
+  --severity-mild: #00e87a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; top: -20%; left: -10%; width: 60%; height: 60%;
+  background: radial-gradient(ellipse, rgba(0,100,180,0.07) 0%, transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed; bottom: -20%; right: -10%; width: 50%; height: 50%;
+  background: radial-gradient(ellipse, rgba(0,180,120,0.05) 0%, transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+.noise-overlay {
+  position: fixed; inset: 0; opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 200px; pointer-events: none; z-index: 1;
+}
+
+/* ── ENGINE UI SHELL ── */
+.engine-shell {
+  position: relative; z-index: 2;
+  max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px;
+}
+
+.engine-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 0 0 28px; border-bottom: 1px solid var(--border-mid); margin-bottom: 28px;
+  flex-wrap: wrap; gap: 16px;
+}
+.engine-header-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  justify-content: flex-end; max-width: 100%;
+}
+.engine-header-actions .btn-oracle:disabled {
+  opacity: 0.4; cursor: not-allowed;
+}
+.wa-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px;
+  border: 1px solid rgba(37, 211, 102, 0.35);
+  background: rgba(37, 211, 102, 0.08);
+  color: #25d366; cursor: default;
+  flex-shrink: 0;
+}
+.modality-picker.modality-locked {
+  pointer-events: none; opacity: 0.88;
+  position: relative;
+}
+.modality-picker.modality-locked::after {
+  content: 'Locked'; position: absolute; top: 8px; right: 8px;
+  font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--cyan); background: rgba(0,20,40,0.85);
+  padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(0,212,255,0.3);
+  pointer-events: none;
+}
+.engine-brand .brand-title {
+  font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800;
+  color: var(--text-primary); letter-spacing: -0.5px;
+}
+.engine-brand .brand-title span { color: var(--cyan); }
+.engine-brand .brand-sub {
+  font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-label);
+  letter-spacing: 2px; text-transform: uppercase; margin-top: 4px;
+}
+.engine-status {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 20px;
+  border: 1px solid rgba(0,232,122,0.3); background: rgba(0,232,122,0.06);
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 8px var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(.8)} }
+.status-text { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--green); letter-spacing: 1px; text-transform: uppercase; }
+
+.engine-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media(max-width: 800px) { .engine-layout { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 12px; overflow: hidden;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+}
+.panel-title {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-label);
+}
+.panel-badge {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  padding: 2px 8px; border-radius: 3px;
+  background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2);
+  color: var(--cyan-dim); letter-spacing: 1px;
+}
+.panel-body { padding: 16px 18px; }
+
+textarea#jsonInput {
+  width: 100%; min-height: 200px; height: min(42vh, 420px); resize: vertical;
+  background: #030c15; border: 1px solid var(--border-subtle); border-radius: 8px;
+  color: #7dffb0; font-family: 'DM Mono', monospace; font-size: 11px;
+  line-height: 1.7; padding: 14px; outline: none;
+  transition: border-color 0.2s;
+}
+textarea#jsonInput:focus { border-color: var(--border-accent); }
+
+.engine-controls { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+
+.btn {
+  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 9px 20px; border-radius: 6px; border: 1px solid;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-primary {
+  background: rgba(0,212,255,0.12); border-color: rgba(0,212,255,0.4);
+  color: var(--cyan);
+}
+.btn-primary:hover { background: rgba(0,212,255,0.2); border-color: var(--cyan); }
+.btn-secondary {
+  background: rgba(0,255,204,0.06); border-color: rgba(0,255,204,0.2);
+  color: var(--teal-dim);
+}
+.btn-secondary:hover { background: rgba(0,255,204,0.12); }
+.btn-ghost {
+  background: transparent; border-color: var(--border-subtle);
+  color: var(--text-muted);
+}
+.btn-ghost:hover { border-color: var(--border-mid); color: var(--text-secondary); }
+
+.modality-picker {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 6px; max-height: 420px; overflow-y: auto; padding-right: 4px;
+}
+.modality-picker::-webkit-scrollbar { width: 4px; }
+.modality-picker::-webkit-scrollbar-track { background: transparent; }
+.modality-picker::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 4px; }
+
+.mod-btn {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.5px;
+  padding: 7px 10px; border-radius: 5px; cursor: pointer;
+  background: var(--bg-panel); border: 1px solid var(--border-subtle);
+  color: var(--text-muted); transition: all 0.15s; text-align: left;
+}
+.mod-btn:hover { border-color: var(--border-mid); color: var(--text-secondary); }
+.mod-btn.active { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.35); color: var(--cyan); }
+.mod-group-label {
+  font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-muted); padding: 8px 4px 4px;
+  grid-column: 1/-1; border-bottom: 1px solid var(--border-subtle); margin-bottom: 2px;
+}
+
+/* preview iframe */
+#previewFrame {
+  width: 100%; min-height: 280px; height: min(70vh, 560px); border: none; border-radius: 8px;
+  background: var(--bg-void);
+}
+.preview-placeholder {
+  min-height: 240px; height: min(50vh, 420px); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  color: var(--text-muted);
+}
+.preview-placeholder .ph-icon { font-size: 32px; opacity: 0.3; }
+.preview-placeholder p { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; }
+
+.error-toast {
+  display: none; background: rgba(255,45,80,0.1); border: 1px solid rgba(255,45,80,0.3);
+  border-radius: 8px; padding: 12px 16px; margin-top: 12px;
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--red);
+  line-height: 1.6;
+}
+
+.full-preview-area { grid-column: 1/-1; }
+
+/* ── REPORT OUTPUT STYLES (used inside iframe) ── */
+/* These get injected into the generated report */
+</style>
+</head>
+<body>
+<div class="noise-overlay"></div>
+<div class="engine-shell">
+
+  <div class="engine-header">
+    <div class="engine-brand">
+      <div class="brand-title">Manthana <span>Report</span> Engine</div>
+      <div class="brand-sub">Universal AI Medical Report Renderer · 95 Modalities</div>
+    </div>
+    <div class="engine-header-actions">
+      <div class="wa-icon-btn" title="WhatsApp" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      </div>
+      <button type="button" id="btnOracle" class="btn btn-secondary btn-oracle" disabled aria-disabled="true" title="Available after the report renders">Ask Manthana Oracle</button>
+      <div class="engine-status">
+        <div class="status-dot"></div>
+        <span class="status-text">Engine Ready</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="engine-layout">
+
+    <!-- LEFT: JSON INPUT + MODALITY PICKER -->
+    <div>
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header">
+          <span class="panel-title">Modality Selector</span>
+          <span class="panel-badge">95 types</span>
+        </div>
+        <div class="panel-body">
+          <div class="modality-picker" id="modalityPicker"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">JSON Input</span>
+          <span class="panel-badge" id="jsonStatus">Awaiting Input</span>
+        </div>
+        <div class="panel-body">
+          <textarea id="jsonInput" placeholder='Paste AI-generated JSON here or click a modality above to load a sample…'></textarea>
+          <div class="error-toast" id="errorToast"></div>
+          <div class="engine-controls">
+            <button class="btn btn-primary" onclick="generateReport()">▶ Generate Report</button>
+            <button class="btn btn-secondary" onclick="downloadReport()">⬇ Download HTML</button>
+            <button class="btn btn-ghost" onclick="loadSample()">Load Sample</button>
+            <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <div>
+      <div class="panel" style="height:100%;">
+        <div class="panel-header">
+          <span class="panel-title">Live Preview</span>
+          <span class="panel-badge" id="previewBadge">No Report</span>
+        </div>
+        <div class="panel-body" style="padding:12px;">
+          <div id="previewPlaceholder" class="preview-placeholder">
+            <div class="ph-icon">🏥</div>
+            <p>Report will render here</p>
+          </div>
+          <iframe id="previewFrame" style="display:none;"></iframe>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /engine-layout -->
+
+</div><!-- /engine-shell -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCHEMA DOCUMENTATION + SAMPLE DATA
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+/* ──────────────────────────────────────────────
+   MODALITY REGISTRY — 95 modalities
+   ────────────────────────────────────────────── */
+const MODALITIES = [
+  { group:"X-Ray", items:[
+    {key:"xray",         label:"Chest X-Ray"},
+    {key:"xray_bone",    label:"Bone / Skeletal"},
+    {key:"xray_abdomen", label:"Abdominal X-Ray"},
+    {key:"xray_spine",   label:"Spine X-Ray"},
+    {key:"xray_pelvis",  label:"Pelvis X-Ray"},
+    {key:"xray_skull",   label:"Skull X-Ray"},
+    {key:"xray_dental",  label:"Dental / OPG"},
+    {key:"xray_hand_wrist", label:"Hand / Wrist"},
+    {key:"xray_knee",    label:"Knee X-Ray"},
+    {key:"xray_shoulder",label:"Shoulder X-Ray"},
+    {key:"xray_ankle_foot",label:"Ankle / Foot"},
+  ]},
+  { group:"CT Scans", items:[
+    {key:"ct_abdomen",   label:"CT Abdomen/Pelvis"},
+    {key:"ct_chest",     label:"CT Chest"},
+    {key:"ct_cardiac",   label:"CT Cardiac"},
+    {key:"ct_spine",     label:"CT Spine"},
+    {key:"ct_brain",     label:"CT Brain (NCCT)"},
+    {key:"ct_angiography",label:"CT Angiography"},
+    {key:"ct_pulmonary_pe",label:"CTPA — PE"},
+    {key:"ct_liver",     label:"CT Liver"},
+    {key:"ct_kidney",    label:"CT KUB"},
+    {key:"ct_neck",      label:"CT Neck"},
+    {key:"ct_sinuses",   label:"CT Sinuses"},
+    {key:"ct_whole_body",label:"CT Whole Body"},
+    {key:"ct_pet_fusion",label:"CT PET Fusion"},
+    {key:"ct_dual_energy",label:"CT Dual Energy"},
+    {key:"ct_perfusion", label:"CT Perfusion"},
+  ]},
+  { group:"MRI", items:[
+    {key:"brain_mri",    label:"Brain MRI"},
+    {key:"spine_mri",    label:"Spine MRI"},
+    {key:"cardiac_mri",  label:"Cardiac MRI"},
+    {key:"breast_mri",   label:"Breast MRI"},
+    {key:"liver_mri",    label:"Liver / MRCP"},
+    {key:"prostate_mri", label:"Prostate MRI"},
+    {key:"knee_mri",     label:"Knee MRI"},
+    {key:"shoulder_mri", label:"Shoulder MRI"},
+    {key:"abdomen_mri",  label:"MRI Abdomen"},
+    {key:"fetal_mri",    label:"Fetal MRI"},
+    {key:"mri_perfusion",label:"MRI Perfusion"},
+    {key:"mri_spectroscopy",label:"MRI Spectroscopy"},
+    {key:"wbmri",        label:"Whole Body MRI"},
+    {key:"mri_pet_fusion",label:"MRI PET Fusion"},
+  ]},
+  { group:"Nuclear / PET", items:[
+    {key:"pet_ct",       label:"PET/CT"},
+    {key:"pet_mri",      label:"PET/MRI"},
+    {key:"spect",        label:"SPECT Scan"},
+    {key:"bone_scan",    label:"Bone Scintigraphy"},
+    {key:"thyroid_scan", label:"Thyroid Nuclear"},
+    {key:"renal_scan",   label:"Renal Scintigraphy"},
+    {key:"myocardial_perf",label:"Myocardial Perf."},
+  ]},
+  { group:"Ultrasound", items:[
+    {key:"ultrasound",   label:"General USG"},
+    {key:"echo_cardiac", label:"Echocardiography"},
+    {key:"us_abdomen",   label:"USG Abdomen"},
+    {key:"us_pelvis",    label:"USG Pelvis"},
+    {key:"us_obstetric", label:"Obstetric USG"},
+    {key:"us_thyroid",   label:"Thyroid USG"},
+    {key:"us_breast",    label:"Breast USG"},
+    {key:"us_scrotum",   label:"Scrotal USG"},
+    {key:"us_doppler",   label:"Doppler USG"},
+    {key:"us_musculo",   label:"MSK USG"},
+    {key:"us_guided_biopsy",label:"USG Biopsy/FNAC"},
+    {key:"us_carotid",   label:"Carotid Doppler"},
+  ]},
+  { group:"Cardiac / Functional", items:[
+    {key:"ecg",          label:"ECG / 12-lead"},
+    {key:"holter_monitor",label:"Holter 24hr ECG"},
+    {key:"spirometry",   label:"Spirometry / PFT"},
+    {key:"nerve_conduction",label:"NCS / EMG"},
+  ]},
+  { group:"Specialized", items:[
+    {key:"fluoroscopy",  label:"Fluoroscopy"},
+    {key:"angiography",  label:"Angiography DSA"},
+    {key:"dexa_scan",    label:"DEXA Bone Density"},
+    {key:"endoscopy",    label:"Endoscopy"},
+    {key:"bronchoscopy", label:"Bronchoscopy"},
+    {key:"oct_retinal",  label:"OCT Retinal"},
+    {key:"fundus_photo", label:"Fundus Photo"},
+    {key:"colposcopy",   label:"Colposcopy"},
+    {key:"thermography", label:"Thermography"},
+    {key:"capsule_endoscopy",label:"Capsule Endoscopy"},
+  ]},
+  { group:"Pathology / Cytology", items:[
+    {key:"pathology",    label:"Pathology Slides"},
+    {key:"cytology",     label:"Cytology Slides"},
+    {key:"immunohistochem",label:"IHC Slides"},
+    {key:"surgical_specimen",label:"Surgical Specimen"},
+    {key:"genetics_karyotype",label:"Karyotype Analysis"},
+  ]},
+  { group:"Oncology", items:[
+    {key:"mammography",  label:"Mammography"},
+    {key:"oral_cancer",  label:"Oral Cancer"},
+    {key:"dermatology",  label:"Dermatology"},
+    {key:"wound_care",   label:"Wound / Ulcer"},
+  ]},
+  { group:"Ophthalmology / Dental", items:[
+    {key:"ophthalmology",label:"Slit Lamp / Anterior"},
+    {key:"dental_cbct",  label:"Dental CBCT / 3D"},
+    {key:"ortho_implant",label:"Post-Op Implant X-Ray"},
+  ]},
+  { group:"Reports & Documents", items:[
+    {key:"lab_report",   label:"Lab Reports"},
+    {key:"blood_report", label:"CBC / Blood Report"},
+    {key:"urine_report", label:"Urine Analysis"},
+    {key:"culture_report",label:"Microbiology Culture"},
+    {key:"biopsy_report",label:"Biopsy / Histopath"},
+    {key:"genetic_report",label:"Genetic / DNA Report"},
+    {key:"radiology_report",label:"Radiology Report Text"},
+    {key:"discharge_summary",label:"Discharge Summary"},
+    {key:"prescription_ocr",label:"Prescription / OCR"},
+    {key:"surgical_notes",label:"Operative Notes"},
+  ]},
+];
+
+let selectedModality = null;
+let modalityLocked = false;
+/** Labs → engine session (includes oracleHandoff for Oracle button) */
+let oracleHandoffFromLabs = null;
+const MANTHANA_REPORT_ENGINE_STORAGE_KEY = 'manthana_report_engine_v1';
+const MANTHANA_REPORT_ENGINE_HANDOFF_PREFIX = 'manthana_report_engine_handoff_';
+const ORACLE_LABS_HANDOFF_STORAGE_KEY = 'manthana_oracle_labs_handoff_v1';
+
+/* ──────────────────────────────────────────────
+   BUILD MODALITY PICKER UI
+   ────────────────────────────────────────────── */
+function buildModalityPicker() {
+  const container = document.getElementById('modalityPicker');
+  container.classList.toggle('modality-locked', modalityLocked);
+  container.innerHTML = '';
+  MODALITIES.forEach(group => {
+    const lbl = document.createElement('div');
+    lbl.className = 'mod-group-label';
+    lbl.textContent = group.group;
+    container.appendChild(lbl);
+    group.items.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'mod-btn';
+      btn.textContent = item.label;
+      btn.dataset.key = item.key;
+      btn.onclick = () => {
+        if (modalityLocked) return;
+        document.querySelectorAll('.mod-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedModality = item.key;
+        loadSampleForModality(item.key, item.label);
+      };
+      container.appendChild(btn);
+    });
+  });
+}
+
+/* ──────────────────────────────────────────────
+   UNIVERSAL JSON SCHEMA
+   AI should output this structure.
+   All fields are optional — engine handles nulls.
+   ────────────────────────────────────────────── */
+
+/*
+  SCHEMA (for AI prompt / documentation):
+
+  {
+    "modality_key": "shoulder_mri",          // one of 95 keys
+    "report_meta": {
+      "report_id": "RPT-20250407-001",
+      "report_date": "07 Apr 2025",
+      "report_type": "Shoulder MRI",          // human-readable label
+      "confidence": "High",                   // High / Moderate / Low
+      "confidence_score": "94%",
+      "model1": "glm-4.5v",
+      "model2": "glm-5.1:online",
+      "cost": "~₹1.83"
+    },
+    "patient": {
+      "name": "Patient Name",
+      "age": "53 years",
+      "sex": "Male",
+      "id": "MH-2025-0407",
+      "referring_doctor": "Dr. Example",
+      "clinical_history": "Right shoulder pain for 6 months"
+    },
+    "critical_alert": {                        // null if no critical finding
+      "title": "Critical Finding Detected",
+      "description": "Full-thickness tear with retraction"
+    },
+    "technique": [                             // key-value pairs
+      {"label": "Scanner", "value": "1.5T Philips Ingenia"},
+      {"label": "Sequences", "value": "PD, T2, T1, STIR"},
+      {"label": "Contrast", "value": "Not administered"},
+      {"label": "Plane", "value": "Axial, Coronal, Sagittal"}
+    ],
+    "findings": [                              // main findings array
+      {
+        "title": "Supraspinatus Tendon",
+        "severity": "critical",               // critical | significant | moderate | mild | normal
+        "body": "Full-thickness tear at the critical zone..."
+      }
+    ],
+    "measurements": [                          // table rows
+      {
+        "structure": "Tear Gap",
+        "finding": "8–12 mm full-thickness tear",
+        "normal": "No tear",
+        "status": "abnormal"                  // normal | abnormal | borderline
+      }
+    ],
+    "differential_diagnosis": [
+      {
+        "rank": 1,
+        "name": "Full-Thickness Supraspinatus Tear",
+        "detail": "Primary diagnosis — confirmed",
+        "probability": 92                     // integer 0-100
+      }
+    ],
+    "impression": {
+      "primary_diagnosis": "Full-Thickness Supraspinatus Tear",
+      "points": [
+        "Full-thickness tear at critical zone, 8-12mm gap...",
+        "Co-existing infraspinatus PASTA lesion..."
+      ]
+    },
+    "recommendations": [
+      {
+        "icon": "🔬",
+        "title": "Orthopedic Correlation",
+        "text": "Urgent orthopedic consultation recommended..."
+      }
+    ],
+    "educational_note": {                      // optional
+      "title": "Teaching Points",
+      "items": [
+        {"heading": "Critical Zone", "text": "1 cm proximal to supraspinatus footprint..."}
+      ]
+    }
+  }
+*/
+
+/* ──────────────────────────────────────────────
+   SAMPLE DATA GENERATOR
+   ────────────────────────────────────────────── */
+function loadSampleForModality(key, label) {
+  const sample = buildSample(key, label);
+  document.getElementById('jsonInput').value = JSON.stringify(sample, null, 2);
+  document.getElementById('jsonStatus').textContent = key;
+}
+
+function buildSample(key, label) {
+  // Generic sample that adapts to any modality
+  return {
+    modality_key: key,
+    report_meta: {
+      report_id: `RPT-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-001`,
+      report_date: new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}),
+      report_type: label,
+      confidence: "High",
+      confidence_score: "91%",
+      model1: "glm-4.5v",
+      model2: "glm-5.1:online",
+      cost: "~₹1.83"
+    },
+    patient: {
+      name: "Sample Patient",
+      age: "45 years",
+      sex: "Female",
+      id: "MH-SAMPLE-001",
+      referring_doctor: "Dr. Sample",
+      clinical_history: `Clinical indication for ${label}`
+    },
+    critical_alert: null,
+    technique: [
+      {label: "Modality", value: label},
+      {label: "Date", value: new Date().toLocaleDateString()},
+      {label: "Contrast", value: "Not administered"},
+      {label: "Quality", value: "Diagnostic"}
+    ],
+    findings: [
+      {
+        title: "Primary Structure",
+        severity: "significant",
+        body: `<strong>Sample finding for ${label}.</strong> Replace this with actual AI-generated findings. The engine accepts any severity: <em>critical</em>, <em>significant</em>, <em>moderate</em>, <em>mild</em>, or <em>normal</em>.`
+      },
+      {
+        title: "Secondary Finding",
+        severity: "mild",
+        body: "This is a mild incidental finding. All findings from the AI response map to individual cards with color-coded severity indicators."
+      }
+    ],
+    measurements: [
+      {structure: "Structure A", finding: "12mm × 8mm", normal: "< 10mm", status: "abnormal"},
+      {structure: "Structure B", finding: "Within limits", normal: "< 15mm", status: "normal"},
+      {structure: "Structure C", finding: "Borderline", normal: "< 5mm", status: "borderline"}
+    ],
+    differential_diagnosis: [
+      {rank: 1, name: "Primary Diagnosis", detail: "Most likely based on imaging pattern", probability: 85},
+      {rank: 2, name: "Differential 2", detail: "Alternative consideration", probability: 45},
+      {rank: 3, name: "Differential 3", detail: "Less likely, monitor", probability: 20}
+    ],
+    impression: {
+      primary_diagnosis: `Sample Primary Diagnosis for ${label}`,
+      points: [
+        "Point 1 — describe the primary finding with measurements and severity.",
+        "Point 2 — describe associated or secondary findings.",
+        "Point 3 — note incidental findings or limitations of the study."
+      ]
+    },
+    recommendations: [
+      {icon: "🔬", title: "Clinical Correlation", text: "Correlate with clinical examination and symptoms."},
+      {icon: "📋", title: "Follow-Up Imaging", text: "Repeat study in 3–6 months if clinically indicated."},
+      {icon: "💉", title: "Specialist Referral", text: "Refer to appropriate specialist for further evaluation."}
+    ],
+    educational_note: {
+      title: `Teaching Points — ${label}`,
+      items: [
+        {heading: "Imaging Protocol", text: "Standard protocol for this modality includes multiple sequences/planes to assess all relevant structures."},
+        {heading: "Key Landmarks", text: "Always assess primary structures, adjacent soft tissues, vascular structures, and bone marrow signal."}
+      ]
+    }
+  };
+}
+
+function loadSample() {
+  const key = selectedModality || "shoulder_mri";
+  const label = selectedModality
+    ? MODALITIES.flatMap(g => g.items).find(i => i.key === key)?.label || key
+    : "Shoulder MRI";
+  loadSampleForModality(key, label);
+}
+
+/* ──────────────────────────────────────────────
+   REPORT RENDERER
+   Converts JSON → full standalone HTML string
+   ────────────────────────────────────────────── */
+function renderReport(data) {
+  const m = data.report_meta || {};
+  const p = data.patient || {};
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  const severityMap = {
+    critical: 'severity-critical', significant: 'severity-significant',
+    moderate: 'severity-moderate', mild: 'severity-mild', normal: 'severity-mild'
+  };
+  const pillMap = {
+    critical: 'critical', significant: 'significant',
+    moderate: 'moderate', mild: 'mild', normal: 'mild'
+  };
+  const statusMap = {
+    normal: 'status-normal', abnormal: 'status-abnormal', borderline: 'status-borderline'
+  };
+
+  /* Section counter */
+  let sec = 0;
+  function sectionHeader(title) {
+    sec++;
+    return `
+    <div class="section-header">
+      <span class="section-number">§${String(sec).padStart(2,'0')}</span>
+      <span class="section-title">${title}</span>
+      <div class="section-line"></div>
+    </div>`;
+  }
+
+  /* Findings */
+  const findings = (data.findings || []).map(f => `
+  <div class="finding-card ${severityMap[f.severity] || ''}">
+    <div class="finding-header">
+      <div class="finding-title">${f.title || ''}</div>
+      ${f.severity ? `<span class="severity-pill ${pillMap[f.severity] || ''}">${f.severity}</span>` : ''}
+    </div>
+    <div class="finding-body">${f.body || ''}</div>
+  </div>`).join('');
+
+  /* Measurements */
+  let measureHTML = '';
+  if (data.measurements && data.measurements.length) {
+    const rows = data.measurements.map(r => `
+      <tr>
+        <td>${r.structure || ''}</td>
+        <td>${r.finding || ''}</td>
+        <td>${r.normal || ''}</td>
+        <td><span class="${statusMap[r.status] || ''}">${r.status || ''}</span></td>
+      </tr>`).join('');
+    measureHTML = `
+    <div style="background:var(--bg-panel);border:1px solid var(--border-subtle);border-radius:10px;padding:16px;overflow-x:auto;">
+      <table class="measure-table">
+        <thead><tr>
+          <th>Structure / Parameter</th><th>Finding</th><th>Normal Range</th><th>Status</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  /* Differential */
+  const diffs = (data.differential_diagnosis || []).map(d => `
+  <div class="diff-row">
+    <div class="diff-rank">${d.rank}.</div>
+    <div class="diff-name">${d.name || ''}${d.detail ? `<br><span style="font-size:11px;color:var(--text-muted)">${d.detail}</span>` : ''}</div>
+    <div class="diff-prob-bar"><div class="diff-prob-fill" style="width:${d.probability || 0}%"></div></div>
+    <div class="diff-prob-text">${d.probability || 0}%</div>
+  </div>`).join('');
+
+  /* Impression */
+  const imp = data.impression || {};
+  const impPoints = (imp.points || []).map((pt, i) => `
+    <li>
+      <span class="imp-num">${String(i+1).padStart(2,'0')}.</span>
+      <span>${pt}</span>
+    </li>`).join('');
+
+  /* Recommendations */
+  const recos = (data.recommendations || []).map(r => `
+  <div class="reco-card">
+    <div class="reco-icon">${r.icon || '📋'}</div>
+    <div class="reco-title">${r.title || ''}</div>
+    <div class="reco-text">${r.text || ''}</div>
+  </div>`).join('');
+
+  /* Educational note */
+  let eduHTML = '';
+  if (data.educational_note) {
+    const en = data.educational_note;
+    const items = (en.items || []).map(it => `
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:6px;">${it.heading || ''}</div>
+        <div style="font-size:11px;color:var(--text-secondary);line-height:1.7;">${it.text || ''}</div>
+      </div>`).join('');
+    eduHTML = `
+    <div class="section">
+      ${sectionHeader(en.title || 'Educational Annotation')}
+      <div style="background:var(--bg-panel);border:1px solid var(--border-subtle);border-radius:10px;padding:20px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">${items}</div>
+      </div>
+    </div>`;
+  }
+
+  /* Dynamic AI sections (modality-specific) */
+  let dynamicSectionsHTML = '';
+  const dynList = (data.dynamic_sections || []).slice(0, 5);
+  if (dynList.length) {
+    function dynEmphasisBorder(e) {
+      if (e === 'clinical') return 'rgba(255,184,64,0.45)';
+      if (e === 'technical') return 'rgba(0,255,204,0.35)';
+      return 'rgba(0,212,255,0.35)';
+    }
+    const dynCards = dynList.map(function (s) {
+      var raw = String(s.body || '');
+      var body = raw.length > 1500 ? raw.slice(0, 1500) + '…' : raw;
+      var eb = dynEmphasisBorder(s.emphasis);
+      return (
+        '<div class="finding-card" style="border-left:3px solid ' + eb + ';margin-bottom:12px;">' +
+        '<div class="finding-title">' + esc(s.title || '') + '</div>' +
+        '<div class="finding-body" style="white-space:pre-wrap;margin-top:8px;">' + esc(body) + '</div>' +
+        '</div>'
+      );
+    }).join('');
+    dynamicSectionsHTML =
+      '<div class="section">' +
+      sectionHeader('Clinical intelligence') +
+      dynCards +
+      '</div>';
+  }
+
+  /* Technique */
+  const techItems = (data.technique || []).map(t => `
+  <div class="tech-item">
+    <div class="tech-label">${t.label || ''}</div>
+    <div class="tech-value">${t.value || ''}</div>
+  </div>`).join('');
+
+  /* Source examination image */
+  const sm = data.source_media;
+  let sourceMediaHTML = '';
+  if (sm && sm.kind === 'image' && sm.data_url) {
+    const cap = esc(sm.caption || 'Examination image');
+    const alt = esc(sm.alt || 'Study image');
+    const safeSrc = String(sm.data_url).replace(/"/g, '&quot;');
+    sourceMediaHTML = `
+  <div class="section">
+    ${sectionHeader('Examination image')}
+    <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:16px;overflow:hidden;max-width:100%;">
+      <img src="${safeSrc}" alt="${alt}" style="display:block;width:100%;max-height:min(70vh,560px);height:auto;object-fit:contain;border-radius:8px;" />
+      <div style="font-size:11px;color:var(--text-muted);margin-top:12px;line-height:1.5;">${cap}</div>
+    </div>
+  </div>`;
+  }
+
+  /* Critical banner */
+  const critBanner = data.critical_alert ? `
+  <div class="critical-banner">
+    <div class="critical-icon">⚠️</div>
+    <div class="critical-text">
+      <div class="critical-title">${data.critical_alert.title || 'Critical Finding'}</div>
+      <div class="critical-desc">${data.critical_alert.description || ''}</div>
+    </div>
+  </div>` : '';
+
+  /* Confidence color */
+  const confColor = {High: '#00e87a', Moderate: '#ffb840', Low: '#ff4d6a'}[m.confidence] || '#00e87a';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manthana Labs — ${m.report_type || 'Radiology Report'}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;600;700&family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-void:#020509;--bg-deep:#060d14;--bg-card:#0a1520;--bg-panel:#0d1c2a;--bg-elevated:#112233;
+  --border-subtle:rgba(0,180,255,0.08);--border-mid:rgba(0,180,255,0.18);--border-accent:rgba(0,220,255,0.35);
+  --cyan:#00d4ff;--cyan-dim:#0099bb;--teal:#00ffcc;--teal-dim:#00bb99;
+  --amber:#ffb840;--red:#ff4d6a;--red-dim:#cc2244;--green:#00e87a;--green-dim:#00aa55;
+  --text-primary:#e8f4ff;--text-secondary:#7ab3cc;--text-muted:#3d6678;--text-label:#4a8fa8;
+  --severity-critical:#ff2244;--severity-significant:#ff8c00;--severity-moderate:#ffd700;--severity-mild:#00e87a;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg-void);color:var(--text-primary);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;position:relative;overflow-x:hidden}
+body::before{content:'';position:fixed;top:-20%;left:-10%;width:60%;height:60%;background:radial-gradient(ellipse,rgba(0,100,180,.07) 0%,transparent 70%);pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;bottom:-20%;right:-10%;width:50%;height:50%;background:radial-gradient(ellipse,rgba(0,180,120,.05) 0%,transparent 70%);pointer-events:none;z-index:0}
+.noise-overlay{position:fixed;inset:0;opacity:.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");background-size:200px;pointer-events:none;z-index:1}
+.wrapper{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:40px 24px 80px}
+.report-header{display:flex;justify-content:space-between;align-items:flex-start;padding:0 0 32px;border-bottom:1px solid var(--border-mid);margin-bottom:36px;gap:20px;flex-wrap:wrap}
+.brand-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.5px;color:var(--text-primary);line-height:1}
+.brand-title span{color:var(--cyan)}
+.brand-subtitle{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-label);letter-spacing:2px;text-transform:uppercase;margin-top:5px}
+.brand-model-tags{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.model-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:3px 8px;border-radius:3px;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.2);color:var(--cyan-dim)}
+.model-tag.secondary{background:rgba(0,255,204,.05);border-color:rgba(0,255,204,.15);color:var(--teal-dim)}
+.report-meta-block{text-align:right}
+.report-type-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--cyan);margin-bottom:4px}
+.report-id{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-secondary);margin-bottom:2px}
+.report-date{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted)}
+.confidence-badge{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:5px 12px;border-radius:20px;border:1px solid rgba(0,232,122,.3);background:rgba(0,232,122,.06)}
+.confidence-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse-dot 2s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.8)}}
+.confidence-text{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--green);text-transform:uppercase}
+.patient-card{background:linear-gradient(135deg,rgba(0,100,160,.12),rgba(0,60,100,.06));border:1px solid var(--border-mid);border-radius:12px;padding:22px 26px;margin-bottom:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:20px;position:relative;overflow:hidden}
+.patient-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),var(--teal),transparent)}
+.patient-field-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px}
+.patient-field-value{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;color:var(--text-primary)}
+.patient-field-value.highlight{color:var(--cyan)}
+.critical-banner{background:linear-gradient(135deg,rgba(255,45,80,.12),rgba(180,20,50,.06));border:1px solid rgba(255,45,80,.35);border-left:4px solid var(--red);border-radius:8px;padding:16px 20px;margin-bottom:28px;display:flex;align-items:center;gap:14px}
+.critical-icon{font-size:20px;flex-shrink:0}
+.critical-title{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--red);margin-bottom:3px}
+.critical-desc{font-size:12px;color:rgba(255,100,120,.8);line-height:1.5}
+.section{margin-bottom:32px}
+.section-header{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid var(--border-subtle)}
+.section-number{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);opacity:.6;letter-spacing:1px}
+.section-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--text-secondary);flex:1}
+.section-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border-mid),transparent)}
+.technique-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.tech-item{background:var(--bg-panel);border:1px solid var(--border-subtle);border-radius:8px;padding:12px 14px}
+.tech-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px}
+.tech-value{font-size:12px;font-weight:500;color:var(--text-primary)}
+.finding-card{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;padding:18px 20px;margin-bottom:12px;position:relative}
+.finding-card:hover{border-color:var(--border-mid)}
+.finding-card.severity-critical{border-left:3px solid var(--severity-critical);background:linear-gradient(135deg,rgba(255,34,68,.06),var(--bg-card))}
+.finding-card.severity-significant{border-left:3px solid var(--severity-significant);background:linear-gradient(135deg,rgba(255,140,0,.06),var(--bg-card))}
+.finding-card.severity-moderate{border-left:3px solid var(--severity-moderate);background:linear-gradient(135deg,rgba(255,215,0,.04),var(--bg-card))}
+.finding-card.severity-mild{border-left:3px solid var(--severity-mild);background:linear-gradient(135deg,rgba(0,232,122,.04),var(--bg-card))}
+.finding-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.finding-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text-primary)}
+.severity-pill{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:20px;font-weight:500;flex-shrink:0}
+.severity-pill.critical{background:rgba(255,34,68,.15);color:var(--severity-critical);border:1px solid rgba(255,34,68,.3)}
+.severity-pill.significant{background:rgba(255,140,0,.12);color:var(--severity-significant);border:1px solid rgba(255,140,0,.3)}
+.severity-pill.moderate{background:rgba(255,215,0,.1);color:var(--severity-moderate);border:1px solid rgba(255,215,0,.25)}
+.severity-pill.mild{background:rgba(0,232,122,.08);color:var(--severity-mild);border:1px solid rgba(0,232,122,.25)}
+.finding-body{font-size:13px;line-height:1.75;color:var(--text-secondary)}
+.finding-body strong{color:var(--text-primary);font-weight:600}
+.finding-body em{color:var(--cyan);font-style:normal;font-weight:500}
+.measure-table{width:100%;border-collapse:collapse;font-size:12px}
+.measure-table thead tr{border-bottom:1px solid var(--border-mid)}
+.measure-table th{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);padding:8px 12px;text-align:left;font-weight:400}
+.measure-table td{padding:10px 12px;border-bottom:1px solid var(--border-subtle);color:var(--text-secondary);vertical-align:top}
+.measure-table td:first-child{font-weight:500;color:var(--text-primary)}
+.measure-table tr:last-child td{border-bottom:none}
+.measure-table tr:hover td{background:rgba(0,180,255,.03)}
+.status-normal{color:var(--green)}.status-abnormal{color:var(--red)}.status-borderline{color:var(--amber)}
+.impression-box{background:linear-gradient(135deg,rgba(0,100,160,.15),rgba(0,60,100,.08));border:1px solid var(--border-accent);border-radius:12px;padding:26px 28px;position:relative;overflow:hidden}
+.impression-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--cyan),var(--teal),var(--cyan));background-size:200% 100%;animation:shimmer 3s ease-in-out infinite}
+@keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.impression-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--cyan);text-transform:uppercase;margin-bottom:14px}
+.impression-diagnosis{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--text-primary);line-height:1.4;margin-bottom:16px}
+.impression-points{list-style:none;padding:0}
+.impression-points li{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-subtle);font-size:13px;color:var(--text-secondary);line-height:1.6}
+.impression-points li:last-child{border-bottom:none}
+.imp-num{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);opacity:.7;flex-shrink:0;padding-top:2px}
+.reco-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.reco-card{background:var(--bg-panel);border:1px solid var(--border-subtle);border-radius:10px;padding:16px 18px}
+.reco-icon{font-size:18px;margin-bottom:8px}
+.reco-title{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:6px;letter-spacing:.5px}
+.reco-text{font-size:11px;color:var(--text-secondary);line-height:1.6}
+.diff-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-subtle)}
+.diff-row:last-child{border-bottom:none}
+.diff-rank{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);width:20px;flex-shrink:0}
+.diff-name{flex:1;font-size:13px;color:var(--text-primary);font-weight:500}
+.diff-prob-bar{width:100px;height:4px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;flex-shrink:0}
+.diff-prob-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--cyan),var(--teal))}
+.diff-prob-text{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);width:36px;text-align:right;flex-shrink:0}
+.radiologist-footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:20px}
+.sig-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px}
+.sig-name{font-family:'Playfair Display',serif;font-size:18px;color:var(--cyan);font-style:italic}
+.sig-cred{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:3px}
+.disclaimer-box{max-width:420px;background:rgba(255,140,0,.05);border:1px solid rgba(255,140,0,.15);border-radius:8px;padding:14px 16px}
+.disclaimer-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--amber);margin-bottom:6px}
+.disclaimer-text{font-size:10px;color:rgba(200,150,80,.7);line-height:1.6}
+@media print{body{background:#fff!important;color:#000!important}.noise-overlay,.radiologist-footer .disclaimer-box{display:none}}
+</style>
+</head>
+<body>
+<div class="noise-overlay"></div>
+<div class="wrapper">
+
+  <!-- ══ HEADER ══ -->
+  <div class="report-header">
+    <div class="brand-block">
+      <div class="brand-title">Manthana <span>Labs</span></div>
+      <div class="brand-subtitle">AI Radiology · Medical Intelligence Platform</div>
+      <div class="brand-model-tags">
+        ${m.model1 ? `<span class="model-tag">${m.model1}</span>` : ''}
+        ${m.model2 ? `<span class="model-tag secondary">${m.model2}</span>` : ''}
+        ${m.cost ? `<span class="model-tag secondary">${m.cost}</span>` : ''}
+      </div>
+    </div>
+    <div class="report-meta-block">
+      <div class="report-type-label">${m.report_type || 'Medical Report'}</div>
+      <div class="report-id">${m.report_id || ''}</div>
+      <div class="report-date">${m.report_date || ''}</div>
+      ${m.confidence ? `
+      <div class="confidence-badge" style="border-color:${confColor}33;background:${confColor}0D;">
+        <div class="confidence-dot" style="background:${confColor};box-shadow:0 0 8px ${confColor}"></div>
+        <span class="confidence-text" style="color:${confColor}">Confidence ${m.confidence_score || m.confidence}</span>
+      </div>` : ''}
+    </div>
+  </div>
+
+  <!-- ══ PATIENT CARD ══ -->
+  ${p.name ? `
+  <div class="patient-card">
+    <div class="patient-field">
+      <div class="patient-field-label">Patient Name</div>
+      <div class="patient-field-value highlight">${p.name}</div>
+    </div>
+    ${p.age ? `<div class="patient-field"><div class="patient-field-label">Age / Sex</div><div class="patient-field-value">${p.age}${p.sex ? ` · ${p.sex}` : ''}</div></div>` : ''}
+    ${p.id ? `<div class="patient-field"><div class="patient-field-label">Patient ID</div><div class="patient-field-value">${p.id}</div></div>` : ''}
+    ${p.referring_doctor ? `<div class="patient-field"><div class="patient-field-label">Referring</div><div class="patient-field-value">${p.referring_doctor}</div></div>` : ''}
+    ${p.clinical_history ? `<div class="patient-field" style="grid-column:1/-1"><div class="patient-field-label">Clinical History</div><div class="patient-field-value" style="font-size:12px;font-weight:400;color:var(--text-secondary)">${p.clinical_history}</div></div>` : ''}
+  </div>` : ''}
+
+  ${sourceMediaHTML}
+
+  <!-- ══ CRITICAL ALERT ══ -->
+  ${critBanner}
+
+  <!-- ══ §01 TECHNIQUE ══ -->
+  ${data.technique && data.technique.length ? `
+  <div class="section">
+    ${sectionHeader('Examination Technique')}
+    <div class="technique-grid">${techItems}</div>
+  </div>` : ''}
+
+  <!-- ══ §02 FINDINGS ══ -->
+  ${findings ? `
+  <div class="section">
+    ${sectionHeader('Radiological Findings')}
+    ${findings}
+  </div>` : ''}
+
+  <!-- ══ §03 MEASUREMENTS ══ -->
+  ${measureHTML ? `
+  <div class="section">
+    ${sectionHeader('Measurements & Structured Assessment')}
+    ${measureHTML}
+  </div>` : ''}
+
+  <!-- ══ §04 DIFFERENTIAL ══ -->
+  ${diffs ? `
+  <div class="section">
+    ${sectionHeader('Differential Diagnosis')}
+    <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;padding:18px 20px;">
+      ${diffs}
+    </div>
+  </div>` : ''}
+
+  <!-- ══ §05 IMPRESSION ══ -->
+  ${imp.primary_diagnosis ? `
+  <div class="section">
+    ${sectionHeader('Radiological Impression')}
+    <div class="impression-box">
+      <div class="impression-label">Primary Diagnosis</div>
+      <div class="impression-diagnosis">${imp.primary_diagnosis}</div>
+      ${impPoints ? `<ul class="impression-points">${impPoints}</ul>` : ''}
+    </div>
+  </div>` : ''}
+
+  <!-- ══ §06 RECOMMENDATIONS ══ -->
+  ${recos ? `
+  <div class="section">
+    ${sectionHeader('Clinical Recommendations')}
+    <div class="reco-grid">${recos}</div>
+  </div>` : ''}
+
+  <!-- ══ §07 EDUCATIONAL NOTE ══ -->
+  ${eduHTML}
+
+  <!-- ══ DYNAMIC AI SECTIONS ══ -->
+  ${dynamicSectionsHTML}
+
+  <!-- ══ FOOTER ══ -->
+  <div class="radiologist-footer">
+    <div class="sig-block">
+      <div class="sig-label">AI Radiologist · Copilot</div>
+      <div class="sig-name">Manthana Med Vision v2</div>
+      <div class="sig-cred">Augmented by ${m.model1 || 'AI Model'} · ${m.report_date || new Date().toLocaleDateString()}</div>
+    </div>
+    <div class="disclaimer-box">
+      <div class="disclaimer-title">⚠ Educational Research Use Only</div>
+      <div class="disclaimer-text">This report is generated for radiology education and AI research purposes. It does not constitute a formal radiological diagnosis and must not be used for clinical decision-making without review by a licensed radiologist.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`;
+}
+
+/* ──────────────────────────────────────────────
+   UI FUNCTIONS
+   ────────────────────────────────────────────── */
+let lastReportHTML = '';
+
+function setOracleButtonEnabled(on) {
+  const btn = document.getElementById('btnOracle');
+  if (!btn) return;
+  btn.disabled = !on;
+  btn.setAttribute('aria-disabled', String(!on));
+  btn.title = on ? 'Open Manthana Oracle with this report' : 'Available after the report renders';
+}
+
+function openOracleFromEngine() {
+  try {
+    if (!oracleHandoffFromLabs || !oracleHandoffFromLabs.reportMarkdown) {
+      const raw = sessionStorage.getItem(MANTHANA_REPORT_ENGINE_STORAGE_KEY);
+      if (raw) {
+        const sess = JSON.parse(raw);
+        if (sess && sess.oracleHandoff) oracleHandoffFromLabs = sess.oracleHandoff;
+      }
+    }
+    if (!oracleHandoffFromLabs || !oracleHandoffFromLabs.reportMarkdown) return;
+    sessionStorage.setItem(ORACLE_LABS_HANDOFF_STORAGE_KEY, JSON.stringify(oracleHandoffFromLabs));
+    const u = new URL('/', window.location.origin);
+    u.searchParams.set('mode', 'm5');
+    u.searchParams.set('domain', 'm5');
+    u.searchParams.set('labsHandoff', '1');
+    window.open(u.toString(), '_blank', 'noopener,noreferrer');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function generateReport() {
+  const raw = document.getElementById('jsonInput').value.trim();
+  const toast = document.getElementById('errorToast');
+  const badge = document.getElementById('previewBadge');
+
+  if (!raw) {
+    showError('No JSON input. Click a modality to load a sample or paste your AI output.');
+    return;
+  }
+
+  let data;
+  try {
+    // Strip markdown code fences if present
+    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/,'').trim();
+    data = JSON.parse(clean);
+  } catch(e) {
+    showError(`JSON Parse Error: ${e.message}\n\nMake sure the AI output is valid JSON. Strip any markdown code fences.`);
+    return;
+  }
+
+  toast.style.display = 'none';
+  lastReportHTML = renderReport(data);
+
+  const placeholder = document.getElementById('previewPlaceholder');
+  const frame = document.getElementById('previewFrame');
+  placeholder.style.display = 'none';
+  frame.style.display = 'block';
+  frame.style.height = '600px';
+
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open(); doc.write(lastReportHTML); doc.close();
+
+  badge.textContent = data.report_meta?.report_type || data.modality_key || 'Report';
+
+  const canOracle = !!(oracleHandoffFromLabs && oracleHandoffFromLabs.reportMarkdown);
+  setOracleButtonEnabled(canOracle);
+}
+
+function downloadReport() {
+  if (!lastReportHTML) { generateReport(); }
+  if (!lastReportHTML) return;
+  const blob = new Blob([lastReportHTML], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `manthana_report_${Date.now()}.html`;
+  a.click();
+}
+
+function showError(msg) {
+  const toast = document.getElementById('errorToast');
+  toast.textContent = msg;
+  toast.style.display = 'block';
+}
+
+function clearAll() {
+  document.getElementById('jsonInput').value = '';
+  document.getElementById('jsonStatus').textContent = 'Awaiting Input';
+  document.getElementById('errorToast').style.display = 'none';
+  document.getElementById('previewPlaceholder').style.display = 'flex';
+  document.getElementById('previewFrame').style.display = 'none';
+  document.getElementById('previewBadge').textContent = 'No Report';
+  document.querySelectorAll('.mod-btn').forEach(b => b.classList.remove('active'));
+  selectedModality = null;
+  lastReportHTML = '';
+  modalityLocked = false;
+  oracleHandoffFromLabs = null;
+  buildModalityPicker();
+  setOracleButtonEnabled(false);
+}
+
+function stripHandoffQueryFromUrl() {
+  try {
+    const u = new URL(window.location.href);
+    if (!u.searchParams.has('handoff') && !u.searchParams.has('pm')) return;
+    u.searchParams.delete('handoff');
+    u.searchParams.delete('pm');
+    const clean = u.pathname + (u.search || '') + u.hash;
+    history.replaceState(null, '', clean);
+  } catch (e) {
+    console.error('stripHandoffQueryFromUrl', e);
+  }
+}
+
+/** Labs writes sessionStorage in the opener tab; a new tab does NOT see it — prefer ?handoff= + localStorage. */
+function readLabsSessionPayload() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const handoff = params.get('handoff');
+    if (handoff) {
+      const key = MANTHANA_REPORT_ENGINE_HANDOFF_PREFIX + handoff;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          /* ignore */
+        }
+        return JSON.parse(raw);
+      }
+    }
+    const raw = sessionStorage.getItem(MANTHANA_REPORT_ENGINE_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('readLabsSessionPayload', e);
+  }
+  return null;
+}
+
+function applyLabsSession(sess) {
+  if (!sess || !sess.enginePayload) return false;
+  modalityLocked = true;
+  oracleHandoffFromLabs = sess.oracleHandoff || null;
+  const ep = sess.enginePayload || {};
+  const mk = sess.modalityKey || ep.modality_key || null;
+  selectedModality = mk;
+  document.getElementById('jsonInput').value = JSON.stringify(sess.enginePayload, null, 2);
+  document.getElementById('jsonStatus').textContent = sess.modalityLabel || mk || 'Labs';
+  buildModalityPicker();
+  if (mk) {
+    const sel = '.mod-btn[data-key="' + String(mk).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]';
+    const btn = document.querySelector(sel);
+    if (btn) {
+      document.querySelectorAll('.mod-btn').forEach(function (b) {
+        b.classList.remove('active');
+      });
+      btn.classList.add('active');
+    }
+  }
+  generateReport();
+  return true;
+}
+
+function initFromLabsSession() {
+  try {
+    const sess = readLabsSessionPayload();
+    if (!sess) return;
+    if (applyLabsSession(sess)) {
+      stripHandoffQueryFromUrl();
+    }
+  } catch (e) {
+    console.error('initFromLabsSession', e);
+  }
+}
+
+/** When localStorage is blocked, the opener delivers the payload via postMessage (?pm=1). */
+function installPostMessageHandoff() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('pm') !== '1') return;
+  function onMsg(ev) {
+    if (ev.origin !== window.location.origin) return;
+    if (!ev.data || ev.data.type !== 'manthana_report_engine_v1' || !ev.data.payload) return;
+    window.removeEventListener('message', onMsg);
+    if (applyLabsSession(ev.data.payload)) {
+      stripHandoffQueryFromUrl();
+    }
+  }
+  window.addEventListener('message', onMsg);
+}
+
+// Init
+buildModalityPicker();
+document.getElementById('btnOracle').addEventListener('click', openOracleFromEngine);
+installPostMessageHandoff();
+initFromLabsSession();
+</script>
+</body>
+</html>

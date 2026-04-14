@@ -30,7 +30,7 @@ export default function CommandPalette({ open, onClose, onUpload, onNewScan }: P
     { id: "brain", icon: "✦", label: "Analyse as Brain MRI", action: () => onClose() },
     { id: "cardiac", icon: "✦", label: "Analyse as Cardiac CT", action: () => onClose() },
     { id: "ecg", icon: "✦", label: "Analyse as ECG", action: () => onClose() },
-    { id: "report", icon: "⊞", label: "Generate Report", shortcut: "Ctrl+P", action: () => onClose() },
+    { id: "report", icon: "⊞", label: "Universal Report Engine", shortcut: "Ctrl+P", action: () => onClose() },
     { id: "history", icon: "≡", label: "View History", action: () => { router.push("/analyse/history"); onClose(); } },
     { id: "settings", icon: "⚙", label: "Settings", action: () => onClose() },
   ];

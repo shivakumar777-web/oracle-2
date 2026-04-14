@@ -3,11 +3,13 @@ import React, { useMemo, useCallback, useEffect, useState } from "react";
 import type { AnalysisResponse, ScanStage, HeatmapState } from "@/lib/analyse/types";
 import FindingCard from "./FindingCard";
 import DualArcGauge from "./DualArcGauge";
+import AIValidationPanel from "./AIValidationPanel";
 import { MODALITIES } from "@/lib/analyse/constants";
 import { modalityBarIdFromBackendCt } from "@/lib/analyse/ct-upload-wizard";
 import { useMediaQuery } from "@/hooks/analyse/useMediaQuery";
 import { scoreFindings } from "@/lib/analyse/structured-reports";
 import { uniqueFormattedLabsModels } from "@/lib/analyse/display-models";
+import type { PreValidationResponse, ChatMessage } from "@/lib/analyse/deepseek-validator";
 
 interface Props {
   stage: ScanStage;
@@ -15,7 +17,6 @@ interface Props {
   detectedModality?: string;
   onGenerateReport?: () => void;
   onNewScan?: () => void;
-  onAskAI?: () => void;
   heatmapState?: HeatmapState;
   onHeatmapStateChange?: (state: HeatmapState) => void;
   /** Optional elapsed analysis time in ms for the active image. */
@@ -29,6 +30,22 @@ interface Props {
     onSubmit: (answers: Record<string, string>) => void;
     onSkipAll: () => void;
   };
+  /** Desktop resizable column: stretch to parent width instead of capping at 380px */
+  fillContainer?: boolean;
+  /** Shown in the idle state so users see the modality picked in the bar (e.g. Auto-Detect). */
+  idleModalitySummary?: string;
+  /** DeepSeek AI pre-validation props */
+  aiValidation?: {
+    validationResult: PreValidationResponse;
+    userAnswers: Record<string, string>;
+    chatHistory: ChatMessage[];
+    onAnswerQuestion: (questionId: string, answer: string) => void;
+    onAskQuestion: (question: string) => void;
+    onConfirm: () => void;
+    onForceProceed: () => void;
+    onCancel: () => void;
+    isProcessing?: boolean;
+  };
 }
 
 export default function IntelligencePanel({
@@ -37,17 +54,23 @@ export default function IntelligencePanel({
   detectedModality,
   onGenerateReport,
   onNewScan,
-  onAskAI,
   heatmapState,
   onHeatmapStateChange,
   analysisElapsedMs,
   onRetry,
   medgemmaQa,
+  aiValidation,
+  fillContainer,
+  idleModalitySummary,
 }: Props) {
   const { isMobile, isTablet } = useMediaQuery();
   const compact = isMobile || isTablet;
   const isIdle = stage === "idle";
-  const isScanning = !["idle", "complete", "error", "medgemma_questions"].includes(stage);
+  const isPreValidating =
+    stage === "pre_validating" || stage === "awaiting_ai_confirmation";
+  const isScanning =
+    !["idle", "complete", "error", "medgemma_questions"].includes(stage) &&
+    !isPreValidating;
   const isComplete = stage === "complete" && result;
 
   const [medgemmaAnswers, setMedgemmaAnswers] = useState<Record<string, string>>({});
@@ -125,7 +148,7 @@ export default function IntelligencePanel({
       className={compact ? "intelligence-section" : "intelligence-section glass-panel"}
       style={{
         width: "100%",
-        maxWidth: compact ? "none" : 380,
+        maxWidth: compact ? "none" : fillContainer ? "none" : 380,
         flexShrink: 0,
         flex: compact ? 1 : undefined,
         minHeight: compact ? "calc(100dvh - 40px)" : undefined,
@@ -162,6 +185,21 @@ export default function IntelligencePanel({
           }}
         >
           <div style={{ opacity: 0.15, fontSize: 48 }}>◎</div>
+          {idleModalitySummary ? (
+            <p
+              className="font-mono"
+              style={{
+                fontSize: 10,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--scan-400)",
+                textAlign: "center",
+                marginBottom: -4,
+              }}
+            >
+              Modality · {idleModalitySummary}
+            </p>
+          ) : null}
           <p
             className="font-body"
             style={{
@@ -186,6 +224,21 @@ export default function IntelligencePanel({
             13 services · 23+ models ready
           </p>
         </div>
+      )}
+
+      {/* ═══ AI VALIDATION STATE ═══ */}
+      {isPreValidating && aiValidation && (
+        <AIValidationPanel
+          validationResult={aiValidation.validationResult}
+          userAnswers={aiValidation.userAnswers}
+          chatHistory={aiValidation.chatHistory}
+          onAnswerQuestion={aiValidation.onAnswerQuestion}
+          onAskQuestion={aiValidation.onAskQuestion}
+          onConfirm={aiValidation.onConfirm}
+          onForceProceed={aiValidation.onForceProceed}
+          onCancel={aiValidation.onCancel}
+          isProcessing={aiValidation.isProcessing}
+        />
       )}
 
       {/* ═══ SCANNING STATE ═══ */}
@@ -723,21 +776,14 @@ export default function IntelligencePanel({
           {/* Action buttons */}
           <div style={{ marginTop: "auto", paddingTop: 20, display: "flex", flexDirection: "column", gap: 8 }}>
             <button className="btn-gold" onClick={onGenerateReport} style={{ width: "100%" }}>
-              ✦ Generate Report
+              ✦ Universal Report Engine
             </button>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="btn-teal"
-                onClick={onAskAI}
-                style={{ flex: 1, fontSize: 10, padding: "8px 10px", lineHeight: 1.25 }}
-              >
-                Ask Manthana Oracle
-              </button>
+            {onNewScan && (
               <button
                 className="btn-ghost"
                 onClick={onNewScan}
                 style={{
-                  flex: 1,
+                  width: "100%",
                   border: "1px solid var(--glass-border)",
                   borderRadius: "var(--r-sm)",
                   padding: "8px 12px",
@@ -746,7 +792,7 @@ export default function IntelligencePanel({
               >
                 ↻ New Scan
               </button>
-            </div>
+            )}
           </div>
         </div>
       )}

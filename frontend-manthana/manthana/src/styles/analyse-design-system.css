@@ -502,6 +502,40 @@
   animation: dropZonePulse 1s ease-in-out infinite;
 }
 
+/* ═══ ORCHESTRATION PIPELINE (interpreting stage) ═══ */
+@keyframes orch-progress-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
+@keyframes orch-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.orchestration-progress-dot {
+  animation: orch-progress-pulse 1.2s ease-in-out infinite;
+}
+.orchestration-progress-spinner {
+  animation: orch-progress-spin 0.9s linear infinite;
+}
+
+@keyframes aiReportShimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 /* ═══ CONFIDENCE GAUGE ═══ */
 .gauge-ring {
   fill: none;

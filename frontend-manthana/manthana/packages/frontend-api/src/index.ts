@@ -1,6 +1,5 @@
 // Shared TypeScript models and API client for Manthana frontends.
-// This module is the single source of truth for gateway/report_assembly
-// contracts as seen by the frontend apps.
+// Shared types and API client for Manthana gateway-facing apps.
 
 // Types
 export type {
@@ -39,6 +38,18 @@ export type {
   WorklistItem,
   PacsModality,
   PacsConfig,
+  InterrogatorQuestion,
+  StructuredReportFinding,
+  DiagnosisWithConfidence,
+  NextStepItem,
+  ResearchReferenceLink,
+  ClinicalCorrelationBlock,
+  AIInterpretationReport,
+  AIOrchestrationStage,
+  DetectModalityResult,
+  InterrogateResult,
+  InterpretResult,
+  ModalityGroupDef,
 } from "./types";
 
 // API surface

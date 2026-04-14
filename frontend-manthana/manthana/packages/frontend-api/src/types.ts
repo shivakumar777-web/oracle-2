@@ -105,6 +105,10 @@ export type ScanStage =
   | "analyzing"
   | "heatmap"
   | "extracting"
+  /** DeepSeek pre-validation: analyzing image before GPU inference. */
+  | "pre_validating"
+  /** DeepSeek pre-validation: waiting for user confirmation to proceed. */
+  | "awaiting_ai_confirmation"
   /** Chest X-ray MedGemma flow: TXRV done; waiting for user answers / skip. */
   | "medgemma_questions"
   /** Final Kimi narrative generation after Q&A. */
@@ -150,6 +154,12 @@ export interface Modality {
   tier?: "free" | "pro" | "proplus" | "premium" | "enterprise";
   multiStep?: boolean;
   strict3D?: boolean;
+  /** 95-modality orchestration group (xray, ct, mri, …). */
+  group?: string;
+  /** Accepted file types for uploads (UI hint). */
+  inputFormats?: string[];
+  /** Routed via /ai/* orchestration instead of legacy /analyze GPU services. */
+  orchestrationOnly?: boolean;
 }
 
 export type AnalysisMode = "single" | "multi";
@@ -347,4 +357,121 @@ export interface PacsConfig {
   plugins: string[];
   studies_count: number;
   modalities: Record<string, unknown>;
+}
+
+/** 95-modality AI orchestration — interrogator questions */
+export interface InterrogatorQuestion {
+  id: string;
+  text: string;
+  type: "text" | "select" | "boolean";
+  options?: string[];
+}
+
+/** Structured interpreter report (JSON) */
+export interface StructuredReportFinding {
+  location: string;
+  description: string;
+  measurement?: string;
+  significance: string;
+}
+
+export interface DiagnosisWithConfidence {
+  name: string;
+  confidence_pct: number;
+  icd10?: string;
+  evidence?: string;
+  reasoning?: string;
+}
+
+export interface NextStepItem {
+  action: string;
+  priority: "immediate" | "soon" | "routine";
+  reasoning: string;
+}
+
+export interface ResearchReferenceLink {
+  title: string;
+  journal: string;
+  year: number;
+  url: string;
+  relevance: string;
+}
+
+export interface ClinicalCorrelationBlock {
+  supports_history: string;
+  contradicts_history: string;
+  additional_context_needed: string;
+}
+
+/** Optional modality- or case-specific blocks from the interpreter (2–5 typical). */
+export interface DynamicReportSection {
+  id: string;
+  title: string;
+  body: string;
+  emphasis?: "info" | "clinical" | "technical";
+}
+
+export interface AIInterpretationReport {
+  findings: {
+    primary: StructuredReportFinding[];
+    secondary: StructuredReportFinding[];
+    negative_pertinents: string[];
+  };
+  impressions: {
+    primary_diagnosis: DiagnosisWithConfidence;
+    differentials: DiagnosisWithConfidence[];
+  };
+  severity: {
+    level: "critical" | "urgent" | "moderate" | "incidental";
+    triage_action: string;
+    time_sensitivity: "immediate" | "24h" | "1week" | "routine";
+  };
+  clinical_correlation: ClinicalCorrelationBlock;
+  next_steps: NextStepItem[];
+  research_references: ResearchReferenceLink[];
+  indian_clinical_notes: string;
+  models_used: string[];
+  disclaimer: string;
+  /** AI-generated extra sections (omit if gateway does not emit yet). */
+  dynamic_sections?: DynamicReportSection[];
+}
+
+export type AIOrchestrationStage =
+  | "idle"
+  | "uploading"
+  | "detecting"
+  | "interrogating"
+  | "answering_questions"
+  | "interpreting"
+  | "report_ready"
+  | "error";
+
+export interface DetectModalityResult {
+  modality_key: string;
+  confidence: number;
+  group?: string;
+  reason?: string;
+  model_used?: string;
+}
+
+export interface InterrogateResult {
+  session_id: string;
+  questions: InterrogatorQuestion[];
+  model_used?: string;
+  modality_key: string;
+}
+
+export interface InterpretResult {
+  report: AIInterpretationReport;
+  model_used?: string;
+  web_search_enabled?: boolean;
+  usage?: Record<string, unknown>;
+}
+
+/** UI grouping for ModalityBar */
+export interface ModalityGroupDef {
+  id: string;
+  label: string;
+  icon: string;
+  modalities: Modality[];
 }

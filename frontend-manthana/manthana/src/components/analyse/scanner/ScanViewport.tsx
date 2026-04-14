@@ -151,10 +151,12 @@ export default function ScanViewport({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        gap: compact ? 12 : 20,
-        margin: compact ? 8 : 16,
-        minHeight: compact ? 180 : 380,
+        justifyContent: "flex-start",
+        gap: compact ? 10 : 14,
+        margin: compact ? 8 : "4px 16px 16px 16px",
+        paddingTop: compact ? 8 : 12,
+        paddingBottom: compact ? 16 : 24,
+        minHeight: compact ? 180 : 320,
       }}
     >
       {/* Concentric scan rings */}
@@ -374,7 +376,7 @@ export default function ScanViewport({
     <div className="viewport-section" style={{ flex: 1, minWidth: 0 }}>
       <div
         className="viewport-frame"
-        style={{ minHeight: compact ? 200 : 420, position: "relative", display: "flex", flexDirection: "column" }}
+        style={{ minHeight: compact ? 200 : 360, position: "relative", display: "flex", flexDirection: "column" }}
         onDrop={handleDrop}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}

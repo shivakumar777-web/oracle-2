@@ -2,7 +2,11 @@
  * One-time handoff from Manthana Labs (/analyse) → Manthana Oracle (/).
  * Uses sessionStorage + ?labsHandoff=1 so the Oracle page can seed chat context.
  */
-import type { AnalysisResponse, UnifiedAnalysisResult } from "@/lib/analyse/types";
+import type {
+  AIInterpretationReport,
+  AnalysisResponse,
+  UnifiedAnalysisResult,
+} from "@/lib/analyse/types";
 import { MODALITIES } from "@/lib/analyse/constants";
 import { uniqueFormattedLabsModels } from "@/lib/analyse/display-models";
 
@@ -178,6 +182,124 @@ export function storeOracleLabsHandoff(payload: OracleLabsHandoffPayload): void 
       })
     );
   }
+}
+
+/** Markdown summary of the 95-modality AI interpreter JSON for Manthana Oracle (M5 handoff). */
+export function formatAIInterpretationReportForOracle(
+  report: AIInterpretationReport,
+  opts: { modalityLabel: string; patientId: string }
+): string {
+  const lines: string[] = [];
+  lines.push("## Manthana Labs — AI structured interpretation (final report)");
+  lines.push("");
+  lines.push(
+    "_Educational and decision-support context only. Not a substitute for a certified diagnostic report or clinical judgment._"
+  );
+  lines.push("");
+  lines.push(`**Patient / case ID:** ${opts.patientId || "ANONYMOUS"}`);
+  lines.push(`**Modality:** ${opts.modalityLabel}`);
+  lines.push("");
+  const sev = report.severity;
+  if (sev) {
+    lines.push("### Severity & triage");
+    lines.push(
+      `- **Level:** ${sev.level} · **Time sensitivity:** ${sev.time_sensitivity} · **Action:** ${sev.triage_action}`
+    );
+    lines.push("");
+  }
+  lines.push("### Findings — primary");
+  const prim = report.findings?.primary ?? [];
+  if (prim.length) {
+    for (const f of prim) {
+      lines.push(
+        `- **${f.location}** — ${f.description}${f.measurement ? ` (${f.measurement})` : ""} · _${f.significance}_`
+      );
+    }
+  } else {
+    lines.push("_None listed._");
+  }
+  lines.push("");
+  lines.push("### Findings — secondary");
+  const sec = report.findings?.secondary ?? [];
+  if (sec.length) {
+    for (const f of sec) {
+      lines.push(`- **${f.location}** — ${f.description} · _${f.significance}_`);
+    }
+  } else {
+    lines.push("_None listed._");
+  }
+  lines.push("");
+  const neg = report.findings?.negative_pertinents?.filter(Boolean) ?? [];
+  if (neg.length) {
+    lines.push("### Negative pertinents");
+    lines.push(neg.map((n) => `- ${n}`).join("\n"));
+    lines.push("");
+  }
+  const imp = report.impressions;
+  if (imp?.primary_diagnosis) {
+    lines.push("### Impression — primary diagnosis");
+    const p = imp.primary_diagnosis;
+    lines.push(
+      `- **${p.name}** (${p.confidence_pct}% confidence)${p.icd10 ? ` · ICD-10: \`${p.icd10}\`` : ""}`
+    );
+    if (p.evidence) lines.push(`  - Evidence: ${p.evidence}`);
+    if (p.reasoning) lines.push(`  - Reasoning: ${p.reasoning}`);
+    lines.push("");
+  }
+  if (imp?.differentials?.length) {
+    lines.push("### Differentials");
+    for (const d of imp.differentials) {
+      lines.push(`- **${d.name}** (${d.confidence_pct}%)${d.reasoning ? ` — ${d.reasoning}` : ""}`);
+    }
+    lines.push("");
+  }
+  const cc = report.clinical_correlation;
+  if (cc) {
+    lines.push("### Clinical correlation");
+    if (cc.supports_history) lines.push(`- Supports history: ${cc.supports_history}`);
+    if (cc.contradicts_history) lines.push(`- Tension / contradicts: ${cc.contradicts_history}`);
+    if (cc.additional_context_needed)
+      lines.push(`- Additional context: ${cc.additional_context_needed}`);
+    lines.push("");
+  }
+  if (report.next_steps?.length) {
+    lines.push("### Next steps");
+    for (const n of report.next_steps) {
+      lines.push(`- **[${n.priority}]** ${n.action} — ${n.reasoning}`);
+    }
+    lines.push("");
+  }
+  if (report.dynamic_sections?.length) {
+    lines.push("### Clinical intelligence");
+    for (const s of report.dynamic_sections.slice(0, 5)) {
+      const raw = (s.body ?? "").trim();
+      const body = raw.length > 1500 ? `${raw.slice(0, 1500)}…` : raw;
+      lines.push(`#### ${s.title}`);
+      lines.push(body);
+      lines.push("");
+    }
+  }
+  if (report.research_references?.length) {
+    lines.push("### References");
+    for (const r of report.research_references) {
+      lines.push(`- [${r.title}](${r.url}) (${r.journal}, ${r.year}) — ${r.relevance}`);
+    }
+    lines.push("");
+  }
+  if (report.indian_clinical_notes?.trim()) {
+    lines.push("### Regional / India clinical notes");
+    lines.push(report.indian_clinical_notes.trim());
+    lines.push("");
+  }
+  if (report.models_used?.length) {
+    lines.push(`**Models:** ${uniqueFormattedLabsModels(report.models_used).join(", ")}`);
+    lines.push("");
+  }
+  if (report.disclaimer?.trim()) {
+    lines.push("### Disclaimer");
+    lines.push(report.disclaimer.trim());
+  }
+  return lines.join("\n");
 }
 
 export function consumeOracleLabsHandoff(): OracleLabsHandoffPayload | null {

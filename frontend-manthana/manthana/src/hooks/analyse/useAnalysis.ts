@@ -13,6 +13,7 @@ import { randomId } from "@/lib/analyse/random-id";
 import { AnalysisCancelledError } from "@/lib/analyse/errors";
 import { useToast } from "@/hooks/useToast";
 import { preflightLabsScan, recordLabsScan } from "@/lib/labs/client";
+import { AI_ORCHESTRATION_ENABLED } from "@/lib/analyse/constants";
 
 interface MultiScanState {
   images: ImageScan[];
@@ -26,7 +27,8 @@ interface MultiScanState {
 const INITIAL: MultiScanState = {
   images: [],
   activeIndex: 0,
-  modality: "xray",
+  /** With 95-modality orchestration, default to auto-detect; legacy path stays chest X-ray. */
+  modality: AI_ORCHESTRATION_ENABLED ? "auto" : "xray",
   zoom: 1,
   medgemmaChestEnabled: false,
 };

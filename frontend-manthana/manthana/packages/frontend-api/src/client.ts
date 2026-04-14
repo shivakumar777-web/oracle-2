@@ -7,6 +7,7 @@ import type {
   WorklistItem,
   PacsConfig,
 } from "./types";
+import { buildLocalUnifiedFromResults } from "./unified-report-local";
 
 export interface ApiClientConfig {
   baseUrl: string;
@@ -122,32 +123,13 @@ export function createApiClient(config: ApiClientConfig) {
 
     async generateReport(
       analysisResult: AnalysisResponse,
-      language: string = "en"
+      _language: string = "en"
     ): Promise<{ report: string; pdf_url?: string; impression?: string; narrative?: string }> {
-      const res = await fetch(`${baseUrl}/report`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(),
-        },
-        body: JSON.stringify({ ...analysisResult, language }),
-      });
-      if (res.status === 401) {
-        throw new AuthError("Authentication required. Please log in.");
-      }
-      if (!res.ok) {
-        throw new Error(`Report generation failed: ${res.status}`);
-      }
-      const data = (await res.json()) as {
-        narrative?: string;
-        impression?: string;
-        pdf_url?: string;
-      };
+      const imp = analysisResult.impression ?? "";
       return {
-        report: data.narrative ?? "",
-        pdf_url: data.pdf_url,
-        narrative: data.narrative,
-        impression: data.impression,
+        report: imp,
+        narrative: imp,
+        impression: imp,
       };
     },
 
@@ -178,24 +160,10 @@ export function createApiClient(config: ApiClientConfig) {
     async requestUnifiedReport(
       individualResults: { modality: string; result: AnalysisResponse }[],
       patientId: string,
-      language: string = "en"
+      _language: string = "en"
     ): Promise<UnifiedAnalysisResult> {
-      const res = await fetch(`${baseUrl}/unified-report`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(),
-        },
-        body: JSON.stringify({ results: individualResults, patient_id: patientId, language }),
-      });
-      if (res.status === 401) {
-        throw new AuthError("Authentication required. Please log in.");
-      }
-      if (!res.ok) {
-        const err = await res.text().catch(() => "Unknown error");
-        throw new Error(`Unified report failed (${res.status}): ${err}`);
-      }
-      return res.json();
+      void _language;
+      return buildLocalUnifiedFromResults(individualResults, patientId);
     },
 
     async getServicesHealth(): Promise<ServiceHealth[]> {

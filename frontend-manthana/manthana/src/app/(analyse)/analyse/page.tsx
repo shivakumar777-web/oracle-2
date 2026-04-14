@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation";
 import TopBar from "@/components/analyse/layout/TopBar";
 import ModalityBar from "@/components/analyse/layout/ModalityBar";
+import SelectedModalityStrip from "@/components/analyse/layout/SelectedModalityStrip";
 import DisclaimerBar from "@/components/analyse/layout/DisclaimerBar";
 import CommandPalette from "@/components/analyse/layout/CommandPalette";
 import ScanViewport from "@/components/analyse/scanner/ScanViewport";
@@ -11,6 +12,7 @@ import ViewportControls from "@/components/analyse/scanner/ViewportControls";
 import ThumbnailStrip from "@/components/analyse/scanner/ThumbnailStrip";
 import IntelligencePanel from "@/components/analyse/findings/IntelligencePanel";
 import AIReportPanel from "@/components/analyse/findings/AIReportPanel";
+import OrchestrationProgress from "@/components/analyse/findings/OrchestrationProgress";
 import UnifiedReportPanel from "@/components/analyse/findings/UnifiedReportPanel";
 import InterrogatorQA from "@/components/analyse/qa/InterrogatorQA";
 import PatientContextForm, {
@@ -53,6 +55,7 @@ import {
   buildPatientContextJsonForApi,
 } from "@/lib/analyse/clinical-notes";
 import { AI_ORCHESTRATION_ENABLED, getUploadAcceptTypes, MODALITIES } from "@/lib/analyse/constants";
+import { formatModalityPeek } from "@/lib/analyse/modality-display";
 import { normalizeSubscriptionPlan } from "@/lib/product-access";
 import { preflightLabsScan, recordLabsScan } from "@/lib/labs/client";
 import {
@@ -219,6 +222,8 @@ export default function ScannerPage() {
   const [ctConfig, setCtConfig] = useState<CtWizardState | null>(null);
   const [pacsOpen, setPacsOpen] = useState(false);
   const [pacsTab, setPacsTab] = useState<"studies" | "worklist" | "settings">("studies");
+  /** Desktop: modality bar + disclaimer tucked away for extra main viewport height. */
+  const [desktopFooterCollapsed, setDesktopFooterCollapsed] = useState(false);
   const { isMobile, isTablet, isDesktop, width: viewportWidth } = useMediaQuery();
   const compact = isMobile || isTablet;
   const legacyScanning = !["idle", "complete", "error", "medgemma_questions"].includes(stage);
@@ -901,14 +906,17 @@ export default function ScannerPage() {
         }}
       >
         {orchBusy ? (
-          <div
-            className="font-body"
-            style={{ padding: 16, textAlign: "center", fontSize: 12, color: "var(--text-40)" }}
-          >
-            {orch.stage === "detecting" && "Detecting modality…"}
-            {orch.stage === "interrogating" && "Generating clinical questions…"}
-            {orch.stage === "interpreting" && "Generating structured report…"}
-          </div>
+          orch.stage === "interpreting" ? (
+            <OrchestrationProgress />
+          ) : (
+            <div
+              className="font-body"
+              style={{ padding: 16, textAlign: "center", fontSize: 12, color: "var(--text-40)" }}
+            >
+              {orch.stage === "detecting" && "Detecting modality…"}
+              {orch.stage === "interrogating" && "Generating clinical questions…"}
+            </div>
+          )
         ) : null}
         {orch.stage === "error" && orch.error ? (
           <div
@@ -946,6 +954,9 @@ export default function ScannerPage() {
             questions={orch.questions}
             onSubmit={handleOrchestrationSubmit}
             disabled={orch.isLoading}
+            resolvedModalityLabel={orchModalityLabel}
+            wasAutoDetected={modality === "auto"}
+            detectionConfidence={orch.detectedConfidence ?? undefined}
           />
         ) : null}
         {orch.stage === "report_ready" && orch.report ? (
@@ -977,6 +988,9 @@ export default function ScannerPage() {
     reportLaunch.phase,
     reportLaunch.statusLine,
     handleReportEnginePrimary,
+    orchModalityLabel,
+    modality,
+    orch.detectedConfidence,
   ]);
 
   const findingsPeekSubtitle = (() => {
@@ -1068,7 +1082,7 @@ export default function ScannerPage() {
             display: "flex",
             flexDirection: "column",
             overflowY: "auto",
-            padding: compact ? "8px 8px 80px 8px" : "16px 0 16px 16px",
+            padding: compact ? "8px 8px 80px 8px" : "8px 0 12px 16px",
           }}
         >
           {/* Patient context bar */}
@@ -1096,6 +1110,10 @@ export default function ScannerPage() {
               />
             )}
           </div>
+
+          {!isMultiMode && (
+            <SelectedModalityStrip modalityId={modality} compact={compact} />
+          )}
 
           {modality === "premium_ct_unified" ? (
             <PremiumCTRegionSelector
@@ -1351,13 +1369,50 @@ export default function ScannerPage() {
             peekHeight={72}
             tuckedOffScreen={!consentGiven && mobileFindingsTuckedForConsent}
             collapsedContent={
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span className="font-display" style={{ fontSize: 10, color: "var(--text-55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                  {isMultiMode ? "✦ Multi-Model Analysis" : "Analysis Findings"}
-                </span>
-                <span className="font-mono" style={{ fontSize: 9, color: "var(--scan-400)" }}>
-                  {findingsPeekSubtitle}
-                </span>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  width: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    className="font-display"
+                    style={{
+                      fontSize: 10,
+                      color: "var(--text-55)",
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {isMultiMode ? "✦ Multi-Model Analysis" : "Analysis Findings"}
+                  </span>
+                  <span className="font-mono" style={{ fontSize: 9, color: "var(--scan-400)", flexShrink: 0 }}>
+                    {findingsPeekSubtitle}
+                  </span>
+                </div>
+                {!isMultiMode ? (
+                  <span
+                    className="font-mono"
+                    style={{
+                      fontSize: 9,
+                      color: "var(--text-40)",
+                      letterSpacing: "0.04em",
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {formatModalityPeek(modality)}
+                  </span>
+                ) : null}
               </div>
             }
           >
@@ -1369,6 +1424,7 @@ export default function ScannerPage() {
                 result={result}
                 detectedModality={detectedModality ?? undefined}
                 analysisElapsedMs={analysisElapsedMs}
+                idleModalitySummary={formatModalityPeek(modality)}
                 onGenerateReport={() => {}}
                 onNewScan={handleNewScan}
                 onRetry={handleRetry}
@@ -1443,6 +1499,7 @@ export default function ScannerPage() {
                 result={result}
                 detectedModality={detectedModality ?? undefined}
                 analysisElapsedMs={analysisElapsedMs}
+                idleModalitySummary={formatModalityPeek(modality)}
                 fillContainer={isDesktop}
                 onGenerateReport={() => {}}
                 onNewScan={handleNewScan}
@@ -1532,11 +1589,14 @@ export default function ScannerPage() {
         <ModalityBar
           activeModality={modality}
           onSelect={(m) => setModality(m)}
+          collapsible
+          collapsed={desktopFooterCollapsed}
+          onCollapsedChange={setDesktopFooterCollapsed}
         />
       )}
 
-      {/* ─── DISCLAIMER (hide on mobile — space taken by bottom sheet) ─── */}
-      {!compact && <DisclaimerBar />}
+      {/* ─── DISCLAIMER (hide on mobile — space taken by bottom sheet; hide when desktop footer collapsed) ─── */}
+      {!compact && !desktopFooterCollapsed && <DisclaimerBar />}
 
       {/* ─── COMMAND PALETTE ─── */}
       <CommandPalette

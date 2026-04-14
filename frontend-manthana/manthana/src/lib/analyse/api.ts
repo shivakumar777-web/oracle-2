@@ -1,8 +1,17 @@
 /* ═══ API Client — Gateway Integration ═══ */
 import { GATEWAY_URL } from "./constants";
 import { getGatewayAuthToken } from "./auth-token";
-import type { AnalysisResponse, JobStatus, ServiceHealth, UnifiedAnalysisResult } from "./types";
+import type {
+  AnalysisResponse,
+  DetectModalityResult,
+  InterrogateResult,
+  InterpretResult,
+  JobStatus,
+  ServiceHealth,
+  UnifiedAnalysisResult,
+} from "./types";
 import { AnalysisCancelledError } from "./errors";
+import { buildLocalUnifiedFromResults } from "./unified-report-local";
 
 const FRONTEND_TO_BACKEND_MODALITY: Record<string, string> = {
   xray: "xray",
@@ -248,35 +257,19 @@ export async function getGatewayHealth(): Promise<boolean> {
   }
 }
 
-/** Generate narrative report (proxies to report_assembly via gateway POST /report). */
+/**
+ * Legacy “generate report” hook — no backend report_assembly; returns impression as narrative.
+ * UI may still expose a Generate Report button for future wiring.
+ */
 export async function generateReport(
   analysisResult: AnalysisResponse,
-  language: string = "en"
+  _language: string = "en"
 ): Promise<{ report: string; pdf_url?: string; impression?: string; narrative?: string }> {
-  const token = getGatewayAuthToken();
-  const res = await fetch(`${GATEWAY_URL}/report`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ ...analysisResult, language }),
-    signal: AbortSignal.timeout(120000),
-  });
-  if (res.status === 401) {
-    throw new Error("Authentication required. Please log in.");
-  }
-  if (!res.ok) throw new Error(`Report generation failed: ${res.status}`);
-  const data = (await res.json()) as {
-    narrative?: string;
-    impression?: string;
-    pdf_url?: string;
-  };
+  const imp = analysisResult.impression ?? "";
   return {
-    report: data.narrative ?? "",
-    pdf_url: data.pdf_url,
-    narrative: data.narrative,
-    impression: data.impression,
+    report: imp,
+    narrative: imp,
+    impression: imp,
   };
 }
 
@@ -300,30 +293,13 @@ export async function askCoPilot(
   return data.answer ?? data.response;
 }
 
-/** Request unified cross-modality report from report_assembly via gateway POST /unified-report */
+/** Client-side unified summary (no gateway /unified-report). */
 export async function requestUnifiedReport(
   individualResults: { modality: string; result: AnalysisResponse }[],
   patientId: string,
-  language: string = "en"
+  _language: string = "en"
 ): Promise<UnifiedAnalysisResult> {
-  const token = getGatewayAuthToken();
-  const res = await fetch(`${GATEWAY_URL}/unified-report`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ results: individualResults, patient_id: patientId, language }),
-    signal: AbortSignal.timeout(180000),
-  });
-  if (res.status === 401) {
-    throw new Error("Authentication required. Please log in.");
-  }
-  if (!res.ok) {
-    const err = await res.text().catch(() => "Unknown error");
-    throw new Error(`Unified report failed (${res.status}): ${err}`);
-  }
-  return res.json();
+  return buildLocalUnifiedFromResults(individualResults, patientId);
 }
 
 /* ═══ PACS API ═══ */
@@ -510,4 +486,106 @@ export async function cxrMedgemmaSessionComplete(
     throw new Error(`CXR MedGemma finalize failed (${res.status}): ${err}`);
   }
   return res.json() as Promise<CxrMedgemmaCompleteResponse>;
+}
+
+// ─── 95-modality AI orchestration (/ai/*) ───────────────────────────────────
+
+function orchHeaders(subscriptionTier?: string): Record<string, string> {
+  const token = getGatewayAuthToken();
+  const h: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  if (subscriptionTier) {
+    h["X-Subscription-Tier"] = subscriptionTier.toLowerCase();
+  }
+  return h;
+}
+
+export async function detectModalityOrchestration(
+  payload: {
+    image_b64?: string | null;
+    image_mime?: string;
+    text_context?: string | null;
+  },
+  options?: { subscriptionTier?: string; signal?: AbortSignal }
+): Promise<DetectModalityResult> {
+  const res = await fetch(`${GATEWAY_URL}/ai/detect-modality`, {
+    method: "POST",
+    headers: orchHeaders(options?.subscriptionTier),
+    body: JSON.stringify({
+      image_b64: payload.image_b64 ?? null,
+      image_mime: payload.image_mime ?? "image/jpeg",
+      text_context: payload.text_context ?? null,
+    }),
+    signal: options?.signal,
+  });
+  if (res.status === 401) {
+    throw new Error("Authentication required. Please log in.");
+  }
+  if (!res.ok) {
+    const err = await readGatewayError(res);
+    throw new Error(`detect-modality failed (${res.status}): ${err}`);
+  }
+  return res.json() as Promise<DetectModalityResult>;
+}
+
+export async function interrogateOrchestration(
+  payload: {
+    image_b64?: string | null;
+    image_mime?: string;
+    modality_key: string;
+    patient_context_json?: string | null;
+  },
+  options?: { subscriptionTier?: string; signal?: AbortSignal }
+): Promise<InterrogateResult> {
+  const res = await fetch(`${GATEWAY_URL}/ai/interrogate`, {
+    method: "POST",
+    headers: orchHeaders(options?.subscriptionTier),
+    body: JSON.stringify({
+      image_b64: payload.image_b64 ?? null,
+      image_mime: payload.image_mime ?? "image/jpeg",
+      modality_key: payload.modality_key,
+      patient_context_json: payload.patient_context_json ?? null,
+    }),
+    signal: options?.signal,
+  });
+  if (res.status === 401) {
+    throw new Error("Authentication required. Please log in.");
+  }
+  if (!res.ok) {
+    const err = await readGatewayError(res);
+    throw new Error(`interrogate failed (${res.status}): ${err}`);
+  }
+  return res.json() as Promise<InterrogateResult>;
+}
+
+export async function interpretOrchestration(
+  sessionId: string,
+  answers: Array<{ question_id: string; answer: string }>,
+  options?: {
+    patientContextJson?: string | null;
+    subscriptionTier?: string;
+    signal?: AbortSignal;
+  }
+): Promise<InterpretResult> {
+  const res = await fetch(`${GATEWAY_URL}/ai/interpret`, {
+    method: "POST",
+    headers: orchHeaders(options?.subscriptionTier),
+    body: JSON.stringify({
+      session_id: sessionId,
+      answers,
+      patient_context_json: options?.patientContextJson ?? null,
+      report_detail_level: "detailed",
+    }),
+    signal: options?.signal,
+  });
+  if (res.status === 401) {
+    throw new Error("Authentication required. Please log in.");
+  }
+  if (!res.ok) {
+    const err = await readGatewayError(res);
+    throw new Error(`interpret failed (${res.status}): ${err}`);
+  }
+  return res.json() as Promise<InterpretResult>;
 }
