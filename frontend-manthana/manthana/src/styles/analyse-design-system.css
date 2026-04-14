@@ -603,8 +603,10 @@
     flex: none !important;
   }
   .intelligence-section {
-    max-height: 50vh;
+    /* Stack layout: leave room for TopBar + ModalityBar + disclaimer; scroll inside panel */
+    max-height: min(78vh, calc(100dvh - 200px));
     overflow-y: auto;
+    min-height: 0;
   }
 }
 
