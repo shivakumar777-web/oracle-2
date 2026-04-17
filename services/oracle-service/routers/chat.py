@@ -507,16 +507,49 @@ def _build_chat_system_prompt(
         )
         system_prompts.append({"role": "system", "content": search_priority_block})
 
-    if primary_domain != MedicalDomain.ALLOPATHY:
-        system_prompts.append({
-            "role": "system",
-            "content": (
-                f"UI DOMAIN LOCK: The user selected **{primary_domain.value.upper()}** in the Manthana app. "
-                "Your answer must be framed primarily in that system (dosha/dhatu/marma, organon, siddha "
-                "theory, or Unani tabiyat as appropriate). Mention modern drugs only for comparison or if the "
-                "user asks for them explicitly."
-            ),
-        })
+    # UI DOMAIN LOCK — enforced for ALL five domains so the LLM never drifts
+    # to a different system than what the user explicitly selected.
+    domain_lock_text: Dict[MedicalDomain, str] = {
+        MedicalDomain.ALLOPATHY: (
+            "UI DOMAIN LOCK — ALLOPATHY: The user selected **ALLOPATHY** in the Manthana app. "
+            "Respond exclusively using evidence-based modern Western medicine: peer-reviewed research, "
+            "clinical guidelines (WHO, NIH, ICMR, ADA, AHA, etc.), drug names, ICD codes, and "
+            "pharmacological mechanisms. Do **not** lead with Ayurvedic, Homeopathic, Siddha, or Unani "
+            "recommendations unless the user explicitly asks for a comparison. If traditional medicine is "
+            "mentioned in web results, note it briefly but keep the primary answer in modern medicine."
+        ),
+        MedicalDomain.AYURVEDA: (
+            "UI DOMAIN LOCK — AYURVEDA: The user selected **AYURVEDA** in the Manthana app. "
+            "Your answer must be framed primarily in classical Ayurveda: dosha/dhatu/mala theory, "
+            "Samhita references (Charaka, Sushruta, Vagbhata), Sanskrit shlokas, Panchakarma, "
+            "Rasayana, and AYUSH pharmacopoeia. Do **not** default to allopathic drugs (minoxidil, "
+            "metformin, statins, etc.) as the primary answer. Mention modern medicine only for "
+            "comparison or emergency context if the user asks."
+        ),
+        MedicalDomain.HOMEOPATHY: (
+            "UI DOMAIN LOCK — HOMEOPATHY: The user selected **HOMEOPATHY** in the Manthana app. "
+            "Frame your answer in Hahnemannian homeopathy: Law of Similars, potency selection "
+            "(centesimal / decimal / LM), materia medica (polychrests and specifics), miasmatic "
+            "theory, and constitutional prescribing. Do **not** recommend allopathic drugs as the "
+            "primary option. Reference CCRH, organon, and clinical homeopathy literature."
+        ),
+        MedicalDomain.SIDDHA: (
+            "UI DOMAIN LOCK — SIDDHA: The user selected **SIDDHA** in the Manthana app. "
+            "Answer in the Tamil Siddha tradition: three humors (Vaadham/Pitham/Kabam), Naadi pulse "
+            "diagnosis, Mooligai herbs, Thathu/Jeevam pharmacology, Kayakalpa, and CCRS / AYUSH "
+            "sources. Do **not** default to allopathic treatments as the primary recommendation."
+        ),
+        MedicalDomain.UNANI: (
+            "UI DOMAIN LOCK — UNANI: The user selected **UNANI** in the Manthana app. "
+            "Answer using Greco-Arabic Unani principles: four humors (Akhlat), Mizaj temperament, "
+            "Asbab Sitta Zarooriya, Ilaj bil Tadbeer/Ghiza/Dawa, CCRUM pharmacopoeia, and WHO-EMRO "
+            "traditional medicine guidelines. Do **not** default to allopathic drugs as the primary "
+            "treatment recommendation."
+        ),
+    }
+    lock_msg = domain_lock_text.get(primary_domain)
+    if lock_msg:
+        system_prompts.append({"role": "system", "content": lock_msg})
 
     system_prompts.append({"role": "system", "content": f"Retrieved Medical Context:\n{context}"})
 
@@ -715,28 +748,26 @@ def create_chat_router(limiter) -> APIRouter:
                 primary_domain = MedicalDomain(domain.lower())
             except (ValueError, AttributeError):
                 primary_domain = MedicalDomain.ALLOPATHY
-    
-            detected_domain = detect_domain_in_query(message) if _LIB_AVAILABLE else None
-            is_integrative = is_integrative_query(message) if _LIB_AVAILABLE else False
+
+            # effective_domain always equals primary_domain (the user's explicit pill selection).
+            # We keep detect_domain_in_query for logging/integrative detection but we no longer
+            # auto-switch effective_domain away from the user's choice — doing so caused a split
+            # where web_search_parameters used a different domain than the system prompt.
+            # The user's pill IS their intent; honour it unconditionally.
             effective_domain = primary_domain
-            if detected_domain and detected_domain != primary_domain and is_integrative:
-                json_log("manthana.oracle", "info", event="integrative_query_detected", primary_domain=primary_domain.value, detected_domain=detected_domain.value, request_id=rid)
-            elif (
-                detected_domain
-                and detected_domain != primary_domain
-                and primary_domain == MedicalDomain.ALLOPATHY
-            ):
-                # Only auto-switch domain when the UI is still on default allopathy but the query names another system.
-                # Never override an explicit Ayurveda/Homeopathy/Siddha/Unani pill selection.
-                effective_domain = detected_domain
-                json_log(
-                    "manthana.oracle",
-                    "info",
-                    event="auto_domain_from_query",
-                    primary_domain=primary_domain.value,
-                    effective_domain=effective_domain.value,
-                    request_id=rid,
-                )
+            if _LIB_AVAILABLE:
+                detected_domain = detect_domain_in_query(message)
+                is_integrative = is_integrative_query(message)
+                if detected_domain and detected_domain != primary_domain:
+                    if is_integrative:
+                        json_log("manthana.oracle", "info", event="integrative_query_detected",
+                                 primary_domain=primary_domain.value, detected_domain=detected_domain.value,
+                                 request_id=rid)
+                    else:
+                        # Log only — no longer auto-switching; primary_domain is always authoritative.
+                        json_log("manthana.oracle", "info", event="domain_query_hint_ignored",
+                                 primary_domain=primary_domain.value, detected_domain=detected_domain.value,
+                                 note="user_pill_takes_precedence", request_id=rid)
     
             # Domain-specific query expansion
             # Special enhanced handling for Ayurveda to get classical shlokas
@@ -967,8 +998,13 @@ def create_chat_router(limiter) -> APIRouter:
                 for i, d in enumerate(all_docs[:15])
             ]
     
+            # Always use primary_domain (user's pill selection) for web search — never
+            # the auto-detected effective_domain, which only diverges from primary when
+            # the user is on Allopathy but the query contains traditional-medicine keywords.
+            # Using effective_domain here caused a split: Allopathy system prompt + Ayurveda
+            # web-search allowlist, producing contradictory LLM behaviour.
             web_search_parameters: Optional[Dict[str, Any]] = (
-                build_openrouter_web_search_parameters(effective_domain.value, query=message)
+                build_openrouter_web_search_parameters(primary_domain.value, query=message)
                 if enable_web
                 else None
             )

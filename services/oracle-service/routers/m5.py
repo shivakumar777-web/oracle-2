@@ -138,6 +138,44 @@ from services.shared.openrouter_helpers import (
 )
 
 
+# Domain-specific web search authority hints for M5 mode.
+# Each domain's LLM call is told which authoritative sources to prioritise —
+# this must match the allowed_domains list in domain_sources.py so the LLM
+# instruction and the actual web-search filter are consistent.
+_M5_DOMAIN_WEB_AUTHORITY: Dict[str, str] = {
+    "allopathy": (
+        "When searching the web, prefer authoritative Western-medicine sources: "
+        "PubMed, Cochrane Library, NIH, WHO, ICMR, FDA, NEJM, BMJ, Lancet, UpToDate, "
+        "ClinicalTrials.gov, and government health portals. Cite inline with full URLs."
+    ),
+    "ayurveda": (
+        "When searching the web, prefer AYUSH and classical Ayurveda sources: "
+        "CCRAS (ccras.nic.in), AYUSH portal (ayush.gov.in), NIIMH, TKDL, NMPB, "
+        "AYUSH pharmacopoeia, JAIM, Shodhganga, and peer-reviewed ethnopharmacology journals. "
+        "Do NOT cite minoxidil, finasteride, or allopathic drugs as Ayurvedic treatment. "
+        "Cite inline with full URLs."
+    ),
+    "homeopathy": (
+        "When searching the web, prefer homeopathy research sources: "
+        "CCRH (ccrhindia.nic.in), PCIMH, Homeopathy Research Institute (hri-research.org), "
+        "CORE-Hom, AYUSH portal, and peer-reviewed journals on homeopathy clinical trials. "
+        "Cite inline with full URLs."
+    ),
+    "siddha": (
+        "When searching the web, prefer Siddha and Tamil medicine sources: "
+        "CCRS (ccrs.gov.in), NIS Chennai (nischennai.org), TNMGRMU, AYUSH portal, "
+        "PCIMH, Shodhganga, and peer-reviewed ethnopharmacology. "
+        "Cite inline with full URLs."
+    ),
+    "unani": (
+        "When searching the web, prefer Unani and Greco-Arabic medicine sources: "
+        "CCRUM (ccrum.net), PCIMH, Jamia Hamdard, AMU Unani dept, WHO-EMRO, "
+        "IMEMR, Hamdard Medicus, and peer-reviewed journals on Unani formulations. "
+        "Cite inline with full URLs."
+    ),
+}
+
+
 async def _query_domain_llm_async(
     settings: OracleSettings,
     domain: MedicalDomain,
@@ -148,10 +186,11 @@ async def _query_domain_llm_async(
     """Query LLM for a single domain via OpenRouter (role oracle_m5)."""
     keys = openrouter_api_keys(settings)
     domain_prompt = get_domain_system_prompt(domain)
-    m5_appendix = """
-You are answering in M5 (Five Domain) mode. The user will see your response alongside answers from 4 other medical systems. Provide a comprehensive answer from YOUR domain perspective, emphasizing what makes your system unique. Keep it informative but concise (300-500 words) for comparison purposes.
+    web_authority = _M5_DOMAIN_WEB_AUTHORITY.get(domain.value, _M5_DOMAIN_WEB_AUTHORITY["allopathy"])
+    m5_appendix = f"""
+You are answering in M5 (Five Domain) mode. The user will see your response alongside answers from 4 other medical systems. Provide a comprehensive answer from YOUR domain perspective only, emphasising what makes your system unique. Keep it informative but concise (300–500 words) for comparison purposes.
 
-WEB SEARCH CAPABILITY: You have real-time web search enabled. For latest information, recent studies, current guidelines, or any time-sensitive medical query, search the web and provide authoritative source URLs (WHO, NIH, PubMed, government health sites, medical journals) with your answers. Cite sources naturally within your response.
+WEB SEARCH CAPABILITY: You have real-time web search enabled restricted to authoritative sources for your domain. {web_authority}
 """
     messages = [
         {"role": "system", "content": domain_prompt + m5_appendix},
